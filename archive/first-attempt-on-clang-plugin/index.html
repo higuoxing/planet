@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title> Planet </title>
+  
+  <link rel="icon" type="image/x-icon" href="&#x2F;favicon.png">
+  
+  
+  <link rel= "stylesheet" href= "https://maxst.icons8.com/vue-static/landings/line-awesome/line-awesome/1.3.0/css/line-awesome.min.css" >
+  
+  <link rel="stylesheet" href="/style.css">
+  <script src="/copycode.js"></script>
+</head>
+
+<body>
+  <div class="wrapper">
+    <div class="main">
+      
+
+
+      
+<div class="breadcrumb">
+  <div class="breadcrumb-inner">
+    <div class="breadcrumb-avatar">
+      <a href="">
+	<img src="/avatar.jpeg" height="16" class="breadcrumb-avatar-image" border="0">
+      </a>
+    </div>
+
+    <a href="">Planet</a>
+    <span class="chevron">›</span>
+  </div>
+</div>
+
+<div style="padding-top: 10px">
+  <h1 class="title">
+    First Attempt on Writing a Clang Plugin
+  </h1>
+
+  <div class="date">
+    Published: 2023-04-13
+  </div>
+
+  <div class="tags-container">
+    
+    <span>Tags:</span>
+    
+    
+    <a href="/tags/clang/" class="tag-item">Clang</a>
+    
+    <a href="/tags/llvm/" class="tag-item">LLVM</a>
+    
+    <a href="/tags/postgresql/" class="tag-item">PostgreSQL</a>
+    
+    
+  </div>
+
+  <div class="content">
+    <p><em>Updated on 2024/03/28: Recently, I learned a new tool called <a href="https://codeql.github.com/">CodeQL</a>. The AST matcher introduced in this post can be re-written into the following query.</em></p>
+<details>
+  <summary> suspicious-control-flow-stmt-in-PG_TRY.ql  (Click me to view the content)</summary>
+<pre data-lang="ql" style="background-color:#ffffff;color:#4d4d4c;" class="language-ql "><code class="language-ql" data-lang="ql"><span>/**
+</span><span> * @name Find suspicious control flow stmt in PG_TRY()
+</span><span> * @kind problem
+</span><span> * @problem.severity warning
+</span><span> * @id postgresql/suspicious-control-flow-stmt-in-pg-try
+</span><span> */
+</span><span>
+</span><span>import cpp
+</span><span>
+</span><span>predicate pgTryCatchBlocks(Stmt tryBlock, Stmt catchBlock) {
+</span><span>  exists(IfStmt ifStmt, FunctionCall sigsetjmpCall, BinaryOperation op, Literal zero |
+</span><span>    sigsetjmpCall.getTarget().hasName(&quot;__sigsetjmp&quot;) and
+</span><span>    ifStmt.getCondition().(BinaryOperation) = op and
+</span><span>    op.getOperator() = &quot;==&quot; and
+</span><span>    op.hasOperands(sigsetjmpCall, zero) and
+</span><span>    /* Reduce false positives. */
+</span><span>    ifStmt.isAffectedByMacro() and
+</span><span>    tryBlock = ifStmt.getThen() and
+</span><span>    catchBlock = ifStmt.getElse()
+</span><span>  )
+</span><span>}
+</span><span>
+</span><span>predicate suspiciousReturn(Stmt stmt) { stmt instanceof ReturnStmt }
+</span><span>
+</span><span>predicate suspiciousBreak(Stmt stmt, Stmt tryBlock) {
+</span><span>  stmt instanceof BreakStmt and
+</span><span>  not exists(Loop loop |
+</span><span>    loop = tryBlock.getAChild+() and
+</span><span>    loop.getAChild+() = stmt
+</span><span>  ) and
+</span><span>  not exists(SwitchStmt switch |
+</span><span>    switch = tryBlock.getAChild+() and
+</span><span>    switch.getAChild+() = stmt
+</span><span>  )
+</span><span>}
+</span><span>
+</span><span>predicate suspiciousContinue(Stmt stmt, Stmt tryBlock) {
+</span><span>  stmt instanceof ContinueStmt and
+</span><span>  not exists(Loop loop |
+</span><span>    loop = tryBlock.getAChild+() and
+</span><span>    loop.getAChild+() = stmt
+</span><span>  )
+</span><span>}
+</span><span>
+</span><span>predicate suspiciousGoto(Stmt stmt, Stmt tryBlock) {
+</span><span>  stmt instanceof GotoStmt and
+</span><span>  not exists(LabelStmt label |
+</span><span>    label.getName() = stmt.(GotoStmt).getName() and
+</span><span>    label = tryBlock.getAChild+()
+</span><span>  )
+</span><span>}
+</span><span>
+</span><span>from Stmt tryBlock, Stmt suspiciousControlFlowStmt
+</span><span>where
+</span><span>  pgTryCatchBlocks(tryBlock, _) and
+</span><span>  suspiciousControlFlowStmt = tryBlock.getAChild*() and
+</span><span>  (
+</span><span>    suspiciousReturn(suspiciousControlFlowStmt) or
+</span><span>    suspiciousBreak(suspiciousControlFlowStmt, tryBlock) or
+</span><span>    suspiciousContinue(suspiciousControlFlowStmt, tryBlock) or
+</span><span>    suspiciousGoto(suspiciousControlFlowStmt, tryBlock)
+</span><span>  )
+</span><span>select suspiciousControlFlowStmt, &quot;Found suspicious control flow statements in PG_TRY() block&quot;
+</span></code></pre>
+</details>
+<p><em>Updated on 2024/01/06: My fix got merged in <a href="https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=57d0051706b897048063acc14c2c3454200c488f">57d00517</a> and I received a fancy PostgreSQL challenge coin!</em></p>
+<p><img src="coin-1.jpg" width="280" style="display: inline-block" />  <img src="coin-2.jpg" width="280" style="display: inline-block"/></p>
+<p>My daily job is developing extensions for a database called <a href="https://github.com/greenplum-db/gpdb">Greenplum</a>. It's a distributed database derived from <a href="https://www.postgresql.org/">PostgreSQL</a>. Each time I play with it, I feel vigilant when encountering PostgreSQL error handling codes using <code>PG_TRY()</code>/<code>PG_CATCH()</code> blocks since we've seen many bugs caused by the misuse of it. I decide to write some automative tools to catch these bugs.</p>
+<h2 id="what-do-postgresql-error-handling-codes-look-like">What do PostgreSQL error handling codes look like?</h2>
+<p>Besides <code>PG_TRY()</code> and <code>PG_CATCH()</code>, there're 2 additional macros involved in the PostgreSQL error handling process: <code>ereport()</code> and <code>PG_END_TRY()</code>.</p>
+<ul>
+<li><code>PG_TRY()</code>, <code>PG_CATCH()</code> and <code>PG_END_TRY()</code> is to construct the error handling control flow.</li>
+<li><code>ereport()</code> is to report errors.</li>
+</ul>
+<p>The code pattern of error handling process in PostgreSQL looks like,</p>
+<pre data-lang="c" style="background-color:#ffffff;color:#4d4d4c;" class="language-c "><code class="language-c" data-lang="c"><span style="color:#c82829;">PG_TRY</span><span style="color:#4271ae;">()</span><span>;
+</span><span>{
+</span><span>  </span><span style="color:#999999;">// FallibleMethod() contains potential error reporting calls, e.g.,
+</span><span>  </span><span style="color:#999999;">// ereport();
+</span><span>  </span><span style="color:#c82829;">FallibleMethod</span><span style="color:#4271ae;">()</span><span>;
+</span><span>}
+</span><span style="color:#c82829;">PG_CATCH</span><span style="color:#4271ae;">()</span><span>;
+</span><span>{
+</span><span>  </span><span style="color:#999999;">// Do error handling.
+</span><span>}
+</span><span style="color:#c82829;">PG_END_TRY</span><span style="color:#4271ae;">()</span><span>;
+</span></code></pre>
+<p>The code pattern of these macros looks very similar to <code>try-catch</code> expression in other languages, but their usage is more complicated. The definitions after being simplified for these macros are as follows,</p>
+<pre data-lang="c" style="background-color:#ffffff;color:#4d4d4c;" class="language-c "><code class="language-c" data-lang="c"><span style="color:#999999;">// I commented out the macro definition keyword, so that we can benefit
+</span><span style="color:#999999;">//   from the syntax highlighting :-)
+</span><span style="color:#999999;">// If you want to find the full definitions for these macros, you can find them
+</span><span style="color:#999999;">//   in the link below
+</span><span style="color:#999999;">//   https://github.com/postgres/postgres/blob/f7431bca8b0138bdbce7025871560d39119565a0/src/include/utils/elog.h#L384
+</span><span>
+</span><span style="color:#999999;">// #define PG_TRY()
+</span><span>  </span><span style="color:#8959a8;">do </span><span>{
+</span><span>    sigjmp_buf </span><span style="color:#3e999f;">*</span><span>save_exception_stack </span><span style="color:#3e999f;">=</span><span> PG_exception_stack;
+</span><span>    sigjmp_buf local_sigjmp_buf;
+</span><span>    </span><span style="color:#8959a8;">if </span><span>(</span><span style="color:#c82829;">sigsetjmp</span><span style="color:#4271ae;">(local_sigjmp_buf, </span><span style="color:#f5871f;">0</span><span style="color:#4271ae;">) </span><span style="color:#3e999f;">== </span><span style="color:#f5871f;">0</span><span>)
+</span><span>    {
+</span><span>      PG_exception_stack </span><span style="color:#3e999f;">= &amp;</span><span>local_sigjmp_buf
+</span><span>
+</span><span style="color:#999999;">// #define PG_CATCH()
+</span><span>    }
+</span><span>    </span><span style="color:#8959a8;">else
+</span><span>    {
+</span><span>      PG_exception_stack </span><span style="color:#3e999f;">=</span><span> save_exception_stack;
+</span><span>
+</span><span style="color:#999999;">// #define PG_END_TRY()
+</span><span>    }
+</span><span>    PG_exception_stack </span><span style="color:#3e999f;">=</span><span> save_exception_stack;
+</span><span>  } </span><span style="color:#8959a8;">while </span><span>(</span><span style="color:#f5871f;">0</span><span>)
+</span><span>  
+</span><span style="color:#999999;">// #define ereport()
+</span><span>  </span><span style="color:#8959a8;">if </span><span>(PG_exception_stack </span><span style="color:#3e999f;">!= </span><span style="color:#f5871f;">NULL</span><span>)
+</span><span>    </span><span style="color:#c82829;">siglongjmp</span><span style="color:#4271ae;">(</span><span style="color:#3e999f;">*</span><span style="color:#4271ae;">PG_exception_stack, </span><span style="color:#f5871f;">1</span><span style="color:#4271ae;">)</span><span>;
+</span><span>  </span><span style="color:#8959a8;">else
+</span><span>  {
+</span><span>    </span><span style="color:#999999;">// In real world, we don&#39;t want this branch being taken.
+</span><span>    </span><span style="color:#3e999f;">...
+</span><span>  }
+</span></code></pre>
+<h2 id="how-do-pg-try-and-pg-catch-work">How do <code>PG_TRY()</code> and <code>PG_CATCH()</code> work?</h2>
+<p>The global variable <code>sigjmp_buf *PG_exception_stack</code> saves the environment (stack context) of the previous <code>sigsetjmp()</code> call. Before entering the fallible code section (wrapped by <code>PG_TRY()</code> and <code>PG_CATCH()</code>), we use <code>sigjmp_buf *save_exception_stack</code> to save the previous environment and assign the current environment to <code>PG_exception_stack</code>, so that if any error occurs (call to <code>ereport()</code>), we can use <code>siglongjmp(*PG_exception_stack)</code> to jump to the correct location (catched by the correct <code>PG_CATCH()</code> block).</p>
+<p>In the <code>PG_CATCH()</code> block, we restore the previous environment for <code>PG_exception_stack</code> before taking any error handling action, so that if we want to populate the error to the upper caller (call to <code>PG_RE_THROW()</code> which is another kind of wrapper for <code>siglongjmp()</code>), <code>siglongjmp(*PG_exception_stack)</code> can jump to the correct location again.</p>
+<h2 id="the-problem">The problem</h2>
+<p>One of the common mistakes being made is using jump statements (e.g., <code>return</code>, <code>break</code>, <code>continue</code> and <code>goto</code>) inside the <code>PG_TRY()</code> block, even for experienced PostgreSQL contributors<sup class="footnote-reference"><a href="#1">1</a></sup>. For example, if we use <code>return</code> statement inside the <code>PG_TRY()</code> block, the <code>PG_exception_stack</code> won't be restored to the correct stack context before we leaving the <code>PG_TRY()</code> block, this can lead severe issues to the PostgreSQL/Greenplum server, e.g., server crash<sup class="footnote-reference"><a href="#2">2</a></sup>.</p>
+<p>The code pattern we try to detect is the use of unsafe <code>return</code>, <code>break</code>, <code>continue</code> and <code>goto</code> statements inside the <code>PG_TRY()</code> block. The unsafe code pattern can be summarized to the following rules,</p>
+<ul>
+<li>
+<p><code>return</code> statements used in anywhere of the <code>PG_TRY()</code> block.</p>
+<pre data-lang="c" style="background-color:#ffffff;color:#4d4d4c;" class="language-c "><code class="language-c" data-lang="c"><span style="color:#c82829;">PG_TRY</span><span style="color:#4271ae;">()</span><span>;
+</span><span>{
+</span><span>  </span><span style="color:#3e999f;">...
+</span><span>  </span><span style="color:#999999;">// Unsafe, since PG_exception_stack still stores the
+</span><span>  </span><span style="color:#999999;">// current environment after leaving the PG_TRY-PG_CATCH
+</span><span>  </span><span style="color:#999999;">// blocks.
+</span><span>  </span><span style="color:#8959a8;">return</span><span>;
+</span><span>}
+</span><span style="color:#c82829;">PG_CATCH</span><span style="color:#4271ae;">()</span><span>;
+</span><span>{
+</span><span>  </span><span style="color:#3e999f;">...
+</span><span>}
+</span><span style="color:#c82829;">PG_END_TRY</span><span style="color:#4271ae;">()</span><span>;
+</span></code></pre>
+</li>
+<li>
+<p><code>break</code> statements used in anywhere of the <code>PG_TRY()</code> block except ones used inside the <code>switch</code>, <code>do-while</code>, <code>while</code> and <code>for</code> statements.</p>
+<pre data-lang="c" style="background-color:#ffffff;color:#4d4d4c;" class="language-c "><code class="language-c" data-lang="c"><span style="color:#c82829;">PG_TRY</span><span style="color:#4271ae;">()</span><span>;
+</span><span>{
+</span><span>  </span><span style="color:#3e999f;">...
+</span><span>  </span><span style="color:#999999;">// Unsafe, since the break statement is jumping out of the 
+</span><span>  </span><span style="color:#999999;">// the PG_TRY() block, which breaks the error handling
+</span><span>  </span><span style="color:#999999;">// stack context or environment.
+</span><span>  </span><span style="color:#8959a8;">break</span><span>;
+</span><span>  </span><span style="color:#8959a8;">do
+</span><span>  {
+</span><span>    </span><span style="color:#999999;">// Safe, because we&#39;re jumping out of the do-while loop not the
+</span><span>    </span><span style="color:#999999;">// PG_TRY() block.
+</span><span>    </span><span style="color:#8959a8;">break</span><span>;
+</span><span>  } </span><span style="color:#8959a8;">while </span><span>(</span><span style="color:#f5871f;">0</span><span>);
+</span><span>  </span><span style="color:#8959a8;">while </span><span>(</span><span style="color:#f5871f;">1</span><span>)
+</span><span>  {
+</span><span>    </span><span style="color:#999999;">// Safe. Ditto.
+</span><span>    </span><span style="color:#8959a8;">break</span><span>;
+</span><span>  }
+</span><span>  </span><span style="color:#8959a8;">for </span><span>(;;)
+</span><span>  {
+</span><span>    </span><span style="color:#999999;">// Safe. Ditto.
+</span><span>  }
+</span><span>  </span><span style="color:#8959a8;">switch </span><span>(c)
+</span><span>  {
+</span><span>  </span><span style="color:#8959a8;">case </span><span style="color:#f5871f;">1</span><span>:
+</span><span>    </span><span style="color:#999999;">// Safe. Ditto.
+</span><span>    </span><span style="color:#8959a8;">break</span><span>;
+</span><span>  }
+</span><span>}
+</span><span style="color:#c82829;">PG_CATCH</span><span style="color:#4271ae;">()</span><span>;
+</span><span>{
+</span><span>  </span><span style="color:#3e999f;">...
+</span><span>}
+</span><span style="color:#c82829;">PG_END_TRY</span><span style="color:#4271ae;">()</span><span>;
+</span></code></pre>
+</li>
+<li>
+<p><code>continue</code> statements used in anywhere of the <code>PG_TRY()</code> block except ones used inside the <code>do-while</code>, <code>while</code> and <code>for</code> loops.</p>
+<pre data-lang="c" style="background-color:#ffffff;color:#4d4d4c;" class="language-c "><code class="language-c" data-lang="c"><span style="color:#c82829;">PG_TRY</span><span style="color:#4271ae;">()</span><span>;
+</span><span>{
+</span><span>  </span><span style="color:#999999;">// Unsafe, since the continue statement will terminate the do-while loop
+</span><span>  </span><span style="color:#999999;">// expanded from the PG_TRY() macro and jump out of the PG_TRY() block
+</span><span>  </span><span style="color:#999999;">// with broken error handing stack context.
+</span><span>  </span><span style="color:#8959a8;">continue</span><span>;
+</span><span>  </span><span style="color:#8959a8;">do </span><span>{
+</span><span>    </span><span style="color:#999999;">// Safe.
+</span><span>    </span><span style="color:#8959a8;">continue</span><span>;
+</span><span>  } </span><span style="color:#8959a8;">while </span><span>(</span><span style="color:#f5871f;">0</span><span>);
+</span><span>  </span><span style="color:#8959a8;">while </span><span>(</span><span style="color:#f5871f;">0</span><span>)
+</span><span>  {
+</span><span>    </span><span style="color:#999999;">// Safe.
+</span><span>    </span><span style="color:#8959a8;">continue</span><span>;
+</span><span>  }
+</span><span>  </span><span style="color:#8959a8;">for </span><span>(;;)
+</span><span>  {
+</span><span>    </span><span style="color:#999999;">// Safe.
+</span><span>    </span><span style="color:#8959a8;">continue</span><span>;
+</span><span>  }
+</span><span>}
+</span><span style="color:#c82829;">PG_CATCH</span><span style="color:#4271ae;">()</span><span>;
+</span><span>{
+</span><span>  </span><span style="color:#3e999f;">...
+</span><span>}
+</span><span style="color:#c82829;">PG_END_TRY</span><span style="color:#4271ae;">()</span><span>;
+</span></code></pre>
+</li>
+<li>
+<p><code>goto</code> statements with label out of the <code>PG_TRY()</code> block.</p>
+<pre data-lang="c" style="background-color:#ffffff;color:#4d4d4c;" class="language-c "><code class="language-c" data-lang="c"><span>label1</span><span style="color:#3e999f;">:
+</span><span>  </span><span style="color:#c82829;">PG_TRY</span><span style="color:#4271ae;">()</span><span>;
+</span><span>  {
+</span><span>  label2:
+</span><span>    </span><span style="color:#999999;">// Unsafe. Because we&#39;re jumping out of the PG_TRY() block and it
+</span><span>    </span><span style="color:#999999;">// will break the stack context.
+</span><span>    </span><span style="color:#8959a8;">goto</span><span> label1;
+</span><span>    </span><span style="color:#999999;">// Safe.
+</span><span>    </span><span style="color:#8959a8;">goto</span><span> label2;
+</span><span>  }
+</span><span>  </span><span style="color:#c82829;">PG_CATCH</span><span style="color:#4271ae;">()</span><span>;
+</span><span>  {
+</span><span>    </span><span style="color:#3e999f;">...
+</span><span>  }
+</span><span>  </span><span style="color:#c82829;">PG_END_TRY</span><span style="color:#4271ae;">()</span><span>;
+</span></code></pre>
+</li>
+</ul>
+<h2 id="ast-matcher-or-static-analyzer">AST matcher or static analyzer?</h2>
+<p>The <code>PG_TRY()</code> is a macro in C and it's always expanded to the same thing. Besides, the statements we want to detect are very simple ones which don't involve tracking the change of symbols' states. Clang's AST matcher is good enough for our problem.</p>
+<p>Firstly, we register a callback function <code>checkEndOfTranslationUnit()</code> to find out <code>PG_TRY()</code> blocks with <code>return</code>/<code>break</code>/<code>continue</code>/<code>goto</code> statements inside. The callback function will be called on each of translation unit during compiling. When a <code>PG_TRY()</code> block gets matched, we will carefully check if it's really unsafe to reduce false positive warnings. The code snippet with comments is listed below.</p>
+<pre data-lang="cpp" style="background-color:#ffffff;color:#4d4d4c;" class="language-cpp "><code class="language-cpp" data-lang="cpp"><span style="color:#8959a8;">class </span><span style="color:#c99e00;">ReturnInPgTryBlockChecker </span><span>: </span><span style="color:#8959a8;">public </span><span style="color:#718c00;">Checker</span><span>&lt;check::EndOfTranslationUnit&gt; {
+</span><span style="color:#8959a8;">public</span><span>:
+</span><span>  </span><span style="color:#8959a8;">void </span><span style="color:#4271ae;">checkEndOfTranslationUnit</span><span>(</span><span style="color:#8959a8;">const</span><span> TranslationUnitDecl </span><span style="color:#3e999f;">*</span><span style="color:#f5871f;">TU</span><span>,
+</span><span>                                 AnalysisManager </span><span style="color:#3e999f;">&amp;</span><span style="color:#f5871f;">AM</span><span>, BugReporter </span><span style="color:#3e999f;">&amp;</span><span style="color:#f5871f;">B</span><span>) </span><span style="color:#8959a8;">const </span><span>{
+</span><span>    MatchFinder F;
+</span><span>    PgTryBlockMatcherCallback CB;
+</span><span>    StatementMatcher PgTry </span><span style="color:#3e999f;">=
+</span><span>        </span><span style="color:#999999;">// PG_TRY() will be expanded to the following expression.
+</span><span>        </span><span style="color:#999999;">// if (__sigsetjmp() == 0) {
+</span><span>        </span><span style="color:#999999;">//   PG_exception_stack = &amp;local_sigjmp_buf;
+</span><span>        </span><span style="color:#999999;">//   ...
+</span><span>        </span><span style="color:#999999;">// }
+</span><span>        </span><span style="color:#c82829;">ifStmt</span><span style="color:#4271ae;">(
+</span><span style="color:#4271ae;">            </span><span style="color:#999999;">// The &#39;if&#39; statement must contain a binary operator and the binary operator
+</span><span style="color:#4271ae;">            </span><span style="color:#999999;">// must be &#39;==&#39;.
+</span><span style="color:#4271ae;">            </span><span style="color:#c82829;">hasCondition</span><span style="color:#4271ae;">(
+</span><span style="color:#4271ae;">                </span><span style="color:#c82829;">binaryOperator</span><span style="color:#4271ae;">(</span><span style="color:#c82829;">allOf</span><span style="color:#4271ae;">(</span><span style="color:#c82829;">hasOperatorName</span><span style="color:#4271ae;">(</span><span style="color:#718c00;">&quot;==&quot;</span><span style="color:#4271ae;">),
+</span><span style="color:#4271ae;">                                     </span><span style="color:#999999;">// One of the &#39;==&#39; operands must be a function call and the
+</span><span style="color:#4271ae;">                                     </span><span style="color:#999999;">// function must has name &#39;__sigsetjmp&#39;.
+</span><span style="color:#4271ae;">                                     </span><span style="color:#999999;">// Another operand must be an integer literal &#39;0&#39;.
+</span><span style="color:#4271ae;">                                     </span><span style="color:#c82829;">hasOperands</span><span style="color:#4271ae;">(</span><span style="color:#c82829;">callExpr</span><span style="color:#4271ae;">(</span><span style="color:#c82829;">callee</span><span style="color:#4271ae;">(</span><span style="color:#c82829;">functionDecl</span><span style="color:#4271ae;">(
+</span><span style="color:#4271ae;">                                                     </span><span style="color:#c82829;">hasName</span><span style="color:#4271ae;">(</span><span style="color:#718c00;">&quot;__sigsetjmp&quot;</span><span style="color:#4271ae;">)))),
+</span><span style="color:#4271ae;">                                                 </span><span style="color:#c82829;">integerLiteral</span><span style="color:#4271ae;">(</span><span style="color:#c82829;">equals</span><span style="color:#4271ae;">(</span><span style="color:#f5871f;">0</span><span style="color:#4271ae;">)))))),
+</span><span style="color:#4271ae;">            </span><span style="color:#999999;">// The &#39;if&#39; statement must have a &#39;then&#39; block and the &#39;then&#39; block must
+</span><span style="color:#4271ae;">            </span><span style="color:#999999;">// contain contain one of &#39;return&#39;, &#39;break&#39;, &#39;continue&#39; and &#39;goto&#39; statements.
+</span><span style="color:#4271ae;">            </span><span style="color:#c82829;">hasThen</span><span style="color:#4271ae;">(</span><span style="color:#c82829;">eachOf</span><span style="color:#4271ae;">(
+</span><span style="color:#4271ae;">                </span><span style="color:#999999;">// For convenience, we bind the PG_TRY() block with return statement with
+</span><span style="color:#4271ae;">                </span><span style="color:#999999;">// name &#39;ReturnInPgTryBlock&#39;, so that we can emit a warning message immediately
+</span><span style="color:#4271ae;">                </span><span style="color:#999999;">// later.
+</span><span style="color:#4271ae;">                </span><span style="color:#c82829;">forEachDescendant</span><span style="color:#4271ae;">(</span><span style="color:#c82829;">returnStmt</span><span style="color:#4271ae;">().</span><span style="color:#c82829;">bind</span><span style="color:#4271ae;">(</span><span style="color:#718c00;">&quot;ReturnInPgTryBlock&quot;</span><span style="color:#4271ae;">)),
+</span><span style="color:#4271ae;">                </span><span style="color:#c82829;">anyOf</span><span style="color:#4271ae;">(</span><span style="color:#c82829;">hasDescendant</span><span style="color:#4271ae;">(</span><span style="color:#c82829;">breakStmt</span><span style="color:#4271ae;">()), </span><span style="color:#c82829;">hasDescendant</span><span style="color:#4271ae;">(</span><span style="color:#c82829;">continueStmt</span><span style="color:#4271ae;">()),
+</span><span style="color:#4271ae;">                      </span><span style="color:#c82829;">hasDescendant</span><span style="color:#4271ae;">(</span><span style="color:#c82829;">gotoStmt</span><span style="color:#4271ae;">())))))
+</span><span>            </span><span style="color:#999999;">// We bind our interested PG_TRY() block&#39;s AST to the name &#39;PgTryBlock&#39; for careful
+</span><span>            </span><span style="color:#999999;">// checking later.
+</span><span>            .</span><span style="color:#c82829;">bind</span><span>(</span><span style="color:#718c00;">&quot;PgTryBlock&quot;</span><span>);
+</span><span>
+</span><span>    </span><span style="color:#999999;">// &amp;CB is the callback that will be invoked later for carefully checking the matched
+</span><span>    </span><span style="color:#999999;">// PG_TRY() block&#39;s AST.
+</span><span>    F.</span><span style="color:#c82829;">addMatcher</span><span>(PgTry, </span><span style="color:#3e999f;">&amp;</span><span>CB);
+</span><span>    </span><span style="color:#999999;">// Match the AST!
+</span><span>    F.</span><span style="color:#c82829;">matchAST</span><span>(TU-&gt;</span><span style="color:#c82829;">getASTContext</span><span>());
+</span><span>  }
+</span><span>};
+</span></code></pre>
+<p>Then, we check the matched <code>PG_TRY()</code> block's AST carefully. The following callback will be called once the AST bound to the name of <code>"ReturnInPgTryBlock"</code> or <code>"PgTryBlock"</code> gets matched.</p>
+<pre data-lang="cpp" style="background-color:#ffffff;color:#4d4d4c;" class="language-cpp "><code class="language-cpp" data-lang="cpp"><span style="color:#8959a8;">class </span><span style="color:#c99e00;">PgTryBlockMatcherCallback </span><span>: </span><span style="color:#8959a8;">public </span><span style="color:#718c00;">MatchFinder::MatchCallback </span><span>{
+</span><span style="color:#8959a8;">public</span><span>:
+</span><span>  </span><span style="color:#4271ae;">PgTryBlockMatcherCallback</span><span>() </span><span style="color:#3e999f;">= </span><span style="color:#8959a8;">default</span><span>;
+</span><span>
+</span><span>  </span><span style="color:#8959a8;">void </span><span style="color:#4271ae;">run</span><span>(</span><span style="color:#8959a8;">const</span><span> MatchFinder::MatchResult </span><span style="color:#3e999f;">&amp;</span><span style="color:#f5871f;">Result</span><span>) </span><span style="color:#8959a8;">override </span><span>{
+</span><span>    ASTContext </span><span style="color:#3e999f;">*</span><span>Ctx </span><span style="color:#3e999f;">=</span><span> Result.</span><span style="color:#c82829;">Context</span><span>;
+</span><span>
+</span><span>    </span><span style="color:#8959a8;">if </span><span>(</span><span style="color:#8959a8;">const</span><span> ReturnStmt </span><span style="color:#3e999f;">*</span><span>Return </span><span style="color:#3e999f;">=
+</span><span>            Result.</span><span style="color:#c82829;">Nodes</span><span>.</span><span style="color:#c82829;">getNodeAs</span><span>&lt;ReturnStmt&gt;(</span><span style="color:#718c00;">&quot;ReturnInPgTryBlock&quot;</span><span>)) {
+</span><span>      </span><span style="color:#999999;">// We&#39;ve found a return statement inside PG_TRY block. Let&#39;s warn about
+</span><span>      </span><span style="color:#999999;">// it.
+</span><span>      DiagnosticsEngine </span><span style="color:#3e999f;">&amp;</span><span>DE </span><span style="color:#3e999f;">=</span><span> Ctx-&gt;</span><span style="color:#c82829;">getDiagnostics</span><span>();
+</span><span>      </span><span style="color:#8959a8;">unsigned</span><span> DiagID </span><span style="color:#3e999f;">=</span><span> DE.</span><span style="color:#c82829;">getCustomDiagID</span><span>(
+</span><span>          DiagnosticsEngine::Error,
+</span><span>          </span><span style="color:#718c00;">&quot;unsafe return statement is used inside PG_TRY block&quot;</span><span>);
+</span><span>      </span><span style="color:#8959a8;">auto</span><span> DB </span><span style="color:#3e999f;">=</span><span> DE.</span><span style="color:#c82829;">Report</span><span>(Return-&gt;</span><span style="color:#c82829;">getReturnLoc</span><span>(), DiagID);
+</span><span>      DB.</span><span style="color:#c82829;">AddSourceRange</span><span>(
+</span><span>          </span><span style="color:#4271ae;">CharSourceRange::</span><span style="color:#c82829;">getCharRange</span><span style="color:#4271ae;">(Return-&gt;</span><span style="color:#c82829;">getSourceRange</span><span style="color:#4271ae;">())</span><span>);
+</span><span>    } </span><span style="color:#8959a8;">else if </span><span>(</span><span style="color:#8959a8;">const</span><span> IfStmt </span><span style="color:#3e999f;">*</span><span>If </span><span style="color:#3e999f;">=
+</span><span>                   Result.</span><span style="color:#c82829;">Nodes</span><span>.</span><span style="color:#c82829;">getNodeAs</span><span>&lt;IfStmt&gt;(</span><span style="color:#718c00;">&quot;PgTryBlock&quot;</span><span>)) {
+</span><span>      </span><span style="color:#999999;">// Check if the &#39;break&#39;/&#39;continue&#39;/&#39;goto&#39; statements inside the
+</span><span>      </span><span style="color:#999999;">// PG_TRY() black are unsafe.
+</span><span>      </span><span style="color:#8959a8;">const</span><span> Stmt </span><span style="color:#3e999f;">*</span><span>Then </span><span style="color:#3e999f;">=</span><span> If-&gt;</span><span style="color:#c82829;">getThen</span><span>();
+</span><span>      </span><span style="color:#c82829;">CheckUnsafeBreakStmt</span><span style="color:#4271ae;">(Then, Ctx)</span><span>;
+</span><span>      </span><span style="color:#c82829;">CheckUnsafeContinueStmt</span><span style="color:#4271ae;">(Then, Ctx)</span><span>;
+</span><span>      </span><span style="color:#c82829;">CheckUnsafeGotoStmt</span><span style="color:#4271ae;">(Then, Ctx)</span><span>;
+</span><span>    }
+</span><span>  }
+</span><span>};
+</span></code></pre>
+<p>The code for checking the safety of using <code>break</code>/<code>continue</code>/<code>goto</code> statements inside the <code>PG_TRY()</code> block are very similar. Here, we take <code>CheckUnsafeBreakStmt()</code> as an example. The basic idea behind it is performing BFS on the matched AST.</p>
+<pre data-lang="cpp" style="background-color:#ffffff;color:#4d4d4c;" class="language-cpp "><code class="language-cpp" data-lang="cpp"><span style="color:#8959a8;">static void </span><span style="color:#4271ae;">CheckUnsafeBreakStmt</span><span>(</span><span style="color:#8959a8;">const</span><span> Stmt </span><span style="color:#3e999f;">*</span><span style="color:#f5871f;">Then</span><span>, ASTContext </span><span style="color:#3e999f;">*</span><span style="color:#f5871f;">Ctx</span><span>) {
+</span><span>  std::queue</span><span style="color:#3e999f;">&lt;</span><span style="color:#8959a8;">const</span><span> Stmt </span><span style="color:#3e999f;">*&gt;</span><span> StmtQueue;
+</span><span>  StmtQueue.</span><span style="color:#c82829;">push</span><span>(Then);
+</span><span>  </span><span style="color:#8959a8;">while </span><span>(</span><span style="color:#3e999f;">!</span><span>StmtQueue.</span><span style="color:#c82829;">empty</span><span>()) {
+</span><span>    </span><span style="color:#8959a8;">const</span><span> Stmt </span><span style="color:#3e999f;">*</span><span>CurrStmt </span><span style="color:#3e999f;">=</span><span> StmtQueue.</span><span style="color:#c82829;">front</span><span>();
+</span><span>    StmtQueue.</span><span style="color:#c82829;">pop</span><span>();
+</span><span>
+</span><span>    </span><span style="color:#8959a8;">if </span><span>(</span><span style="color:#3e999f;">!</span><span>CurrStmt)
+</span><span>      </span><span style="color:#8959a8;">continue</span><span>;
+</span><span>
+</span><span>    </span><span style="color:#8959a8;">if </span><span>(</span><span style="color:#8959a8;">const</span><span> BreakStmt </span><span style="color:#3e999f;">*</span><span>Break </span><span style="color:#3e999f;">=
+</span><span>            </span><span style="color:#4271ae;">llvm::</span><span style="color:#c82829;">dyn_cast_if_present</span><span style="color:#4271ae;">&lt;BreakStmt&gt;(CurrStmt)</span><span>) {
+</span><span>      </span><span style="color:#999999;">// We&#39;ve found a break statement inside PG_TRY block. Let&#39;s warn
+</span><span>      </span><span style="color:#999999;">// about it.
+</span><span>      DiagnosticsEngine </span><span style="color:#3e999f;">&amp;</span><span>DE </span><span style="color:#3e999f;">=</span><span> Ctx-&gt;</span><span style="color:#c82829;">getDiagnostics</span><span>();
+</span><span>      </span><span style="color:#8959a8;">unsigned</span><span> DiagID </span><span style="color:#3e999f;">=</span><span> DE.</span><span style="color:#c82829;">getCustomDiagID</span><span>(
+</span><span>          DiagnosticsEngine::Error,
+</span><span>          </span><span style="color:#718c00;">&quot;break statement is used inside PG_TRY block which is unsafe&quot;</span><span>);
+</span><span>      </span><span style="color:#8959a8;">auto</span><span> DB </span><span style="color:#3e999f;">=</span><span> DE.</span><span style="color:#c82829;">Report</span><span>(Break-&gt;</span><span style="color:#c82829;">getBreakLoc</span><span>(), DiagID);
+</span><span>      DB.</span><span style="color:#c82829;">AddSourceRange</span><span>(</span><span style="color:#4271ae;">CharSourceRange::</span><span style="color:#c82829;">getCharRange</span><span style="color:#4271ae;">(Break-&gt;</span><span style="color:#c82829;">getSourceRange</span><span style="color:#4271ae;">())</span><span>);
+</span><span>    }
+</span><span>
+</span><span>    </span><span style="color:#999999;">// break stataments in while/do-while/for/switch statements are safe. We don&#39;t
+</span><span>    </span><span style="color:#999999;">// need to perform BFS on the child nodes.
+</span><span>    </span><span style="color:#8959a8;">if </span><span>(</span><span style="color:#4271ae;">llvm::</span><span style="color:#c82829;">isa</span><span style="color:#4271ae;">&lt;WhileStmt&gt;(CurrStmt) </span><span style="color:#3e999f;">|| </span><span style="color:#4271ae;">llvm::</span><span style="color:#c82829;">isa</span><span style="color:#4271ae;">&lt;DoStmt&gt;(CurrStmt) </span><span style="color:#3e999f;">||
+</span><span>        </span><span style="color:#4271ae;">llvm::</span><span style="color:#c82829;">isa</span><span style="color:#4271ae;">&lt;ForStmt&gt;(CurrStmt) </span><span style="color:#3e999f;">|| </span><span style="color:#4271ae;">llvm::</span><span style="color:#c82829;">isa</span><span style="color:#4271ae;">&lt;SwitchStmt&gt;(CurrStmt)</span><span>) {
+</span><span>      </span><span style="color:#8959a8;">continue</span><span>;
+</span><span>    }
+</span><span>
+</span><span>    </span><span style="color:#8959a8;">for </span><span>(</span><span style="color:#8959a8;">const</span><span> Stmt </span><span style="color:#3e999f;">*</span><span>C </span><span style="color:#3e999f;">:</span><span> CurrStmt-&gt;</span><span style="color:#c82829;">children</span><span>()) {
+</span><span>      StmtQueue.</span><span style="color:#c82829;">push</span><span>(C);
+</span><span>    }
+</span><span>  }
+</span><span>}
+</span></code></pre>
+<p>Now, our checker can report unsafe code patterns in PostgreSQL based projects. The source code for the checker can be found in my GitHub repo<sup class="footnote-reference"><a href="#3">3</a></sup>.</p>
+<h2 id="does-it-find-any-potential-bugs-in-the-real-world">Does it find any potential bugs in the real world?</h2>
+<p>Yes, it found! I found some unsafe codes with it in PostgreSQL<sup class="footnote-reference"><a href="#1">1</a></sup> and of course in Greenplum (I didn't file the issue to Greenplum since I would like to fix that in PostgreSQL first and cherry-pick the patch back to Greenplum). Some of interesting replies I get from the pgsql-hackers mailing list are as follows,</p>
+<ul>
+<li>Tom Lane mentions that using <code>break</code>/<code>continue</code>/<code>goto</code> inside the <code>PG_TRY()</code> block can also mess things up.</li>
+<li>Andres Freund gives a very cool compiler hacking with clang thread-safety-analysis. The patch seems better than my AST matcher idea. If his patch gets committed, we can reject such unsafe code patterns during compiling PostgreSQL.</li>
+</ul>
+<pre data-lang="diff" style="background-color:#ffffff;color:#4d4d4c;" class="language-diff "><code class="language-diff" data-lang="diff"><span>From d1c99e9d12ba01adb21c5f17c792be44cfeef20f Mon Sep 17 00:00:00 2001
+</span><span>From: Andres Freund &lt;andres@anarazel.de&gt;
+</span><span>Date: Thu, 12 Jan 2023 21:18:55 -0800
+</span><span>Subject: [PATCH v1] wip: use clang anotations to warn if code in
+</span><span> PG_TRY/CATCH/FINALLY returns
+</span><span>
+</span><span>Only hooked up to meson right now.
+</span><span style="background-color:#4271ae;color:#ffffff;">---
+</span><span> meson.build              |  1 +
+</span><span> src/include/utils/elog.h | 43 +++++++++++++++++++++++++++++++++++++---
+</span><span> 2 files changed, 41 insertions(+), 3 deletions(-)
+</span><span>
+</span><span>diff --git a/meson.build b/meson.build
+</span><span>index 45fb9dd616e..66a40e728f4 100644
+</span><span style="background-color:#c82829;color:#ffffff;">--- a/meson.build
+</span><span style="background-color:#718c00;color:#ffffff;">+++ b/meson.build
+</span><span style="font-style:italic;color:#3e999f;">@@ -1741,6 +1741,7 @@ common_warning_flags = [
+</span><span>   &#39;-Wimplicit-fallthrough=3&#39;,
+</span><span>   &#39;-Wcast-function-type&#39;,
+</span><span>   &#39;-Wshadow=compatible-local&#39;,
+</span><span style="background-color:#718c00;color:#ffffff;">+  &#39;-Wthread-safety&#39;,
+</span><span>   # This was included in -Wall/-Wformat in older GCC versions
+</span><span>   &#39;-Wformat-security&#39;,
+</span><span> ]
+</span><span>diff --git a/src/include/utils/elog.h b/src/include/utils/elog.h
+</span><span>index 4a9562fdaae..b211e08322a 100644
+</span><span style="background-color:#c82829;color:#ffffff;">--- a/src/include/utils/elog.h
+</span><span style="background-color:#718c00;color:#ffffff;">+++ b/src/include/utils/elog.h
+</span><span style="font-style:italic;color:#3e999f;">@@ -381,32 +381,69 @@ extern PGDLLIMPORT ErrorContextCallback *error_context_stack;
+</span><span>  * same within each component macro of the given PG_TRY() statement.
+</span><span>  *----------
+</span><span>  */
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+/*
+</span><span style="background-color:#718c00;color:#ffffff;">+ * Annotations for detecting returns inside a PG_TRY(), using clang&#39;s thread
+</span><span style="background-color:#718c00;color:#ffffff;">+ * safety annotations.
+</span><span style="background-color:#718c00;color:#ffffff;">+ *
+</span><span style="background-color:#718c00;color:#ffffff;">+ * The &quot;lock&quot; implementations need no_thread_safety_analysis as clang can&#39;t
+</span><span style="background-color:#718c00;color:#ffffff;">+ * understand how a lock is implemented. We wouldn&#39;t want an implementation
+</span><span style="background-color:#718c00;color:#ffffff;">+ * anyway, since there&#39;s no real lock here.
+</span><span style="background-color:#718c00;color:#ffffff;">+ */
+</span><span style="background-color:#718c00;color:#ffffff;">+#ifdef __clang__
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+typedef int __attribute__((capability(&quot;no_returns_in_pg_try&quot;))) no_returns_handle_t;
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+static inline void no_returns_start(no_returns_handle_t l)
+</span><span style="background-color:#718c00;color:#ffffff;">+	__attribute__((acquire_capability(l)))
+</span><span style="background-color:#718c00;color:#ffffff;">+	__attribute__((no_thread_safety_analysis))
+</span><span style="background-color:#718c00;color:#ffffff;">+{
+</span><span style="background-color:#718c00;color:#ffffff;">+}
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+static inline void no_returns_stop(no_returns_handle_t l)
+</span><span style="background-color:#718c00;color:#ffffff;">+	__attribute__((release_capability(l)))
+</span><span style="background-color:#718c00;color:#ffffff;">+	__attribute__((no_thread_safety_analysis))
+</span><span style="background-color:#718c00;color:#ffffff;">+{}
+</span><span style="background-color:#718c00;color:#ffffff;">+#else
+</span><span style="background-color:#718c00;color:#ffffff;">+typedef int pg_attribute_unused() no_returns_handle_t;
+</span><span style="background-color:#718c00;color:#ffffff;">+#define no_returns_start(t) (void)0
+</span><span style="background-color:#718c00;color:#ffffff;">+#define no_returns_stop(t) (void)0
+</span><span style="background-color:#718c00;color:#ffffff;">+#endif
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span> #define PG_TRY(...)  \
+</span><span> 	do { \
+</span><span> 		sigjmp_buf *_save_exception_stack##__VA_ARGS__ = PG_exception_stack; \
+</span><span> 		ErrorContextCallback *_save_context_stack##__VA_ARGS__ = error_context_stack; \
+</span><span> 		sigjmp_buf _local_sigjmp_buf##__VA_ARGS__; \
+</span><span> 		bool _do_rethrow##__VA_ARGS__ = false; \
+</span><span style="background-color:#718c00;color:#ffffff;">+		no_returns_handle_t no_returns_handle##__VA_ARGS__ = 0; \
+</span><span> 		if (sigsetjmp(_local_sigjmp_buf##__VA_ARGS__, 0) == 0) \
+</span><span> 		{ \
+</span><span style="background-color:#c82829;color:#ffffff;">-			PG_exception_stack = &amp;_local_sigjmp_buf##__VA_ARGS__
+</span><span style="background-color:#718c00;color:#ffffff;">+			PG_exception_stack = &amp;_local_sigjmp_buf##__VA_ARGS__; \
+</span><span style="background-color:#718c00;color:#ffffff;">+		    no_returns_start(no_returns_handle##__VA_ARGS__)
+</span><span> 
+</span><span> #define PG_CATCH(...)	\
+</span><span style="background-color:#718c00;color:#ffffff;">+			no_returns_stop(no_returns_handle##__VA_ARGS__); \
+</span><span> 		} \
+</span><span> 		else \
+</span><span> 		{ \
+</span><span> 			PG_exception_stack = _save_exception_stack##__VA_ARGS__; \
+</span><span style="background-color:#c82829;color:#ffffff;">-			error_context_stack = _save_context_stack##__VA_ARGS__
+</span><span style="background-color:#718c00;color:#ffffff;">+			error_context_stack = _save_context_stack##__VA_ARGS__; \
+</span><span style="background-color:#718c00;color:#ffffff;">+		    no_returns_start(no_returns_handle##__VA_ARGS__)
+</span><span> 
+</span><span> #define PG_FINALLY(...) \
+</span><span style="background-color:#718c00;color:#ffffff;">+			no_returns_stop(no_returns_handle##__VA_ARGS__); \
+</span><span> 		} \
+</span><span> 		else \
+</span><span> 			_do_rethrow##__VA_ARGS__ = true; \
+</span><span> 		{ \
+</span><span> 			PG_exception_stack = _save_exception_stack##__VA_ARGS__; \
+</span><span style="background-color:#c82829;color:#ffffff;">-			error_context_stack = _save_context_stack##__VA_ARGS__
+</span><span style="background-color:#718c00;color:#ffffff;">+			error_context_stack = _save_context_stack##__VA_ARGS__; \
+</span><span style="background-color:#718c00;color:#ffffff;">+		    no_returns_start(no_returns_handle##__VA_ARGS__)
+</span><span> 
+</span><span> #define PG_END_TRY(...)  \
+</span><span style="background-color:#718c00;color:#ffffff;">+			no_returns_stop(no_returns_handle##__VA_ARGS__); \
+</span><span> 		} \
+</span><span> 		if (_do_rethrow##__VA_ARGS__) \
+</span><span> 				PG_RE_THROW(); \
+</span><span style="background-color:#c82829;color:#ffffff;">-- 
+</span><span>2.38.0
+</span></code></pre>
+<h2 id="what-s-the-next-step">What's the next step?</h2>
+<p>This is my very first attempt to write a Clang based checker. In addition to using unsafe <code>return</code>/<code>break</code>/<code>continue</code>/<code>goto</code> statements inside the <code>PG_TRY()</code> block, there're still some unsafe code patterns, e.g., modifying a local variable of auto storage class in the <code>PG_TRY()</code> block and use it in the <code>PG_CATCH()</code> block. It would be great to have more checkers for these unsafe code patterns in future.</p>
+<div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
+<p><a href="https://www.postgresql.org/message-id/CACpMh+CMsGMRKFzFMm3bYTzQmMU5nfEEoEDU2apJcc4hid36AQ@mail.gmail.com">https://www.postgresql.org/message-id/CACpMh+CMsGMRKFzFMm3bYTzQmMU5nfEEoEDU2apJcc4hid36AQ@mail.gmail.com</a></p>
+</div>
+<div class="footnote-definition" id="2"><sup class="footnote-definition-label">2</sup>
+<p><a href="https://github.com/greenplum-db/gpdb/pull/14205">https://github.com/greenplum-db/gpdb/pull/14205</a></p>
+</div>
+<div class="footnote-definition" id="3"><sup class="footnote-definition-label">3</sup>
+<p><a href="https://github.com/higuoxing/clang-plugins/blob/88eeb2bea0ade224807bb3e35f1d048dd4d3697c/lib/ReturnInPgTryBlockChecker.cpp">https://github.com/higuoxing/clang-plugins/blob/88eeb2bea0ade224807bb3e35f1d048dd4d3697c/lib/ReturnInPgTryBlockChecker.cpp</a></p>
+</div>
+
+  </div>
+</div>
+
+    </div>
+  </div>
+</body>
+
+</html>

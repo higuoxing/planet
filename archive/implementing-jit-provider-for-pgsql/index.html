@@ -1,0 +1,1629 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title> Planet </title>
+  
+  <link rel="icon" type="image/x-icon" href="&#x2F;favicon.png">
+  
+  
+  <link rel= "stylesheet" href= "https://maxst.icons8.com/vue-static/landings/line-awesome/line-awesome/1.3.0/css/line-awesome.min.css" >
+  
+  <link rel="stylesheet" href="/style.css">
+  <script src="/copycode.js"></script>
+</head>
+
+<body>
+  <div class="wrapper">
+    <div class="main">
+      
+
+
+      
+<div class="breadcrumb">
+  <div class="breadcrumb-inner">
+    <div class="breadcrumb-avatar">
+      <a href="">
+	<img src="/avatar.jpeg" height="16" class="breadcrumb-avatar-image" border="0">
+      </a>
+    </div>
+
+    <a href="">Planet</a>
+    <span class="chevron">›</span>
+  </div>
+</div>
+
+<div style="padding-top: 10px">
+  <h1 class="title">
+    Implementing an alternative JIT provider for PostgreSQL
+  </h1>
+
+  <div class="date">
+    Published: 2023-10-09
+  </div>
+
+  <div class="tags-container">
+    
+    <span>Tags:</span>
+    
+    
+    <a href="/tags/jit/" class="tag-item">JIT</a>
+    
+    <a href="/tags/llvm/" class="tag-item">LLVM</a>
+    
+    <a href="/tags/postgresql/" class="tag-item">PostgreSQL</a>
+    
+    
+  </div>
+
+  <div class="content">
+    <p>Just in time compilation is added to PostgreSQL since the version of 11. The default JIT provider for PostgreSQL is based on LLVM. PostgreSQL allows user to use an alternative JIT provider by setting the <code>jit_provider</code> GUC parameter<sup class="footnote-reference"><a href="#1">1</a></sup>. The pluggable JIT interface is very easy to use and I've successfully built two prototypes, one emits C codes<sup class="footnote-reference"><a href="#2">2</a></sup> and the other one emits assembly codes<sup class="footnote-reference"><a href="#3">3</a></sup> using the AsmJit library<sup class="footnote-reference"><a href="#4">4</a></sup>. In this post, I'll give a brief introduction to the existing LLVM JIT provider and show you how to implement the prototype that emits C codes. It's fun and easy.</p>
+<h2 id="introduction-to-the-llvm-jit-provider">Introduction to the LLVM JIT provider</h2>
+<h3 id="enable-the-llvm-jit">Enable the LLVM JIT</h3>
+<p>The builtin JIT provider can be enabled by appending <code>--with-llvm</code> to configuration flags when building PostgreSQL. If you have multiple LLVM toolchains installed on your system, you may need to specify the <code>CLANG</code> and <code>LLVM_CONFIG</code> environment variable to make sure they are from the same LLVM toolchain set. Otherwise, there will be ABI incompatible issues.</p>
+<pre data-lang="bash" style="background-color:#ffffff;color:#4d4d4c;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#c82829;">CC</span><span style="color:#3e999f;">=</span><span style="color:#718c00;">/</span><span style="color:#3e999f;">&lt;</span><span>path</span><span style="color:#3e999f;">&gt;</span><span>/</span><span style="color:#3e999f;">&lt;</span><span>to</span><span style="color:#3e999f;">&gt;</span><span>/clang </span><span style="color:#c82829;">CXX</span><span style="color:#3e999f;">=</span><span style="color:#718c00;">/</span><span style="color:#3e999f;">&lt;</span><span>path</span><span style="color:#3e999f;">&gt;</span><span>/</span><span style="color:#3e999f;">&lt;</span><span>to</span><span style="color:#3e999f;">&gt;</span><span>/clang++ </span><span style="color:#c82829;">CLANG</span><span style="color:#3e999f;">=</span><span style="color:#718c00;">/</span><span style="color:#3e999f;">&lt;</span><span>path</span><span style="color:#3e999f;">&gt;</span><span>/</span><span style="color:#3e999f;">&lt;</span><span>to</span><span style="color:#3e999f;">&gt;</span><span>/clang </span><span style="color:#c82829;">LLVM_CONFIG</span><span style="color:#3e999f;">=</span><span style="color:#718c00;">/</span><span style="color:#3e999f;">&lt;</span><span>path</span><span style="color:#3e999f;">&gt;</span><span>/</span><span style="color:#3e999f;">&lt;</span><span>to</span><span style="color:#3e999f;">&gt;</span><span>/llvm-config \
+</span><span>  </span><span style="color:#c82829;">./configure</span><span style="color:#f5871f;"> --with-llvm </span><span style="color:#3e999f;">&lt;</span><span style="color:#4271ae;">other-configure-flags</span><span style="color:#3e999f;">&gt;
+</span></code></pre>
+<p>After building it, type the following commands to verify that the LLVM JIT is enabled in your server.</p>
+<pre data-lang="sql" style="background-color:#ffffff;color:#4d4d4c;" class="language-sql "><code class="language-sql" data-lang="sql"><span>postgres</span><span style="color:#3e999f;">=</span><span style="color:#999999;"># SHOW jit;
+</span><span> jit
+</span><span style="color:#999999;">-----
+</span><span> on
+</span><span>(</span><span style="color:#f5871f;">1</span><span> row)
+</span><span>
+</span><span>postgres</span><span style="color:#3e999f;">=</span><span style="color:#999999;"># SHOW jit_provider;
+</span><span> jit_provider
+</span><span style="color:#999999;">--------------
+</span><span> llvmjit
+</span><span>(</span><span style="color:#f5871f;">1</span><span> row)
+</span><span>
+</span></code></pre>
+<p>Setting <code>jit_above_cost</code> to <code>0</code> to force the server to jit the query.</p>
+<pre data-lang="sql" style="background-color:#ffffff;color:#4d4d4c;" class="language-sql "><code class="language-sql" data-lang="sql"><span>postgres</span><span style="color:#3e999f;">=</span><span style="color:#999999;"># SET jit_above_cost=0;
+</span><span style="color:#8959a8;">SET
+</span><span>postgres</span><span style="color:#3e999f;">=</span><span style="color:#999999;"># EXPLAIN (ANALYZE) SELECT 1;
+</span><span>                                                 QUERY PLAN
+</span><span style="color:#999999;">------------------------------------------------------------------------------------------------------------
+</span><span> Result  (cost</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">00</span><span>..</span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">01</span><span> rows</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">1</span><span> width</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">4</span><span>) (actual </span><span style="color:#8959a8;">time</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">3</span><span>.</span><span style="color:#f5871f;">945</span><span>..</span><span style="color:#f5871f;">3</span><span>.</span><span style="color:#f5871f;">946</span><span> rows</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">1</span><span> loops</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">1</span><span>)
+</span><span> Planning </span><span style="color:#8959a8;">Time</span><span>: </span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">039</span><span> ms
+</span><span> JIT:
+</span><span>   Functions: </span><span style="color:#f5871f;">1
+</span><span>   Options: Inlining false, Optimization false, Expressions true, Deforming true
+</span><span>   Timing: Generation </span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">181</span><span> ms, Inlining </span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">000</span><span> ms, Optimization </span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">216</span><span> ms, Emission </span><span style="color:#f5871f;">3</span><span>.</span><span style="color:#f5871f;">721</span><span> ms, Total </span><span style="color:#f5871f;">4</span><span>.</span><span style="color:#f5871f;">117</span><span> ms
+</span><span> Execution </span><span style="color:#8959a8;">Time</span><span>: </span><span style="color:#f5871f;">4</span><span>.</span><span style="color:#f5871f;">218</span><span> ms
+</span><span>(</span><span style="color:#f5871f;">7</span><span> rows)
+</span></code></pre>
+<p>From the JIT statistics, we learned that the LLVM JIT supports accelerating queries from various aspects, e.g., inlining functions, jitting expressions and jitting the tuple deforming process.</p>
+<h3 id="jitting-expressions">Jitting expressions</h3>
+<p>In PostgreSQL, expressions in SQL queries are finally converted to low level operators and their results can be computed via interpreting these operators. Those operators are defined in the header file <a href="https://github.com/postgres/postgres/blob/526fe0d79914b2dfcfd79effd1ab26ff62469248/src/include/executor/execExpr.h#L65"><code>src/include/executor/execExpr.h</code></a>.</p>
+<pre data-lang="c" style="background-color:#ffffff;color:#4d4d4c;" class="language-c "><code class="language-c" data-lang="c"><span style="color:#8959a8;">typedef enum</span><span> ExprEvalOp
+</span><span>{
+</span><span>  </span><span style="color:#999999;">/* entire expression has been evaluated completely, return */
+</span><span>  EEOP_DONE,
+</span><span>
+</span><span>  </span><span style="color:#999999;">/* apply slot_getsomeattrs on corresponding tuple slot */
+</span><span>  EEOP_INNER_FETCHSOME,
+</span><span>  EEOP_OUTER_FETCHSOME,
+</span><span>  EEOP_SCAN_FETCHSOME,
+</span><span>  </span><span style="color:#3e999f;">...
+</span><span>};
+</span></code></pre>
+<p>When the JIT is not enabled, the main entry for interpreting them is <a href="https://github.com/postgres/postgres/blob/526fe0d79914b2dfcfd79effd1ab26ff62469248/src/backend/executor/execExprInterp.c#L395"><code>src/backend/executor/execExprInterp.c:ExecInterpExpr</code></a> and the result of the expression can be computed by iterating over the <a href="https://github.com/postgres/postgres/blob/526fe0d79914b2dfcfd79effd1ab26ff62469248/src/backend/executor/execExprInterp.c#L515"><code>ExprState::steps</code></a> array.</p>
+<pre data-lang="c" style="background-color:#ffffff;color:#4d4d4c;" class="language-c "><code class="language-c" data-lang="c"><span style="color:#999999;">/*
+</span><span style="color:#999999;"> * ExecInterpExpr is using &quot;direct-threaded&quot; implementation of expression evaluation
+</span><span style="color:#999999;"> * to improve the performance. In order to make the interpreter easy to understand,
+</span><span style="color:#999999;"> * I re-write it using a for-loop.
+</span><span style="color:#999999;"> */
+</span><span style="color:#8959a8;">static</span><span> Datum
+</span><span style="color:#4271ae;">ExecInterpExpr</span><span>(ExprState </span><span style="color:#3e999f;">*</span><span style="color:#f5871f;">state</span><span>, ExprContext </span><span style="color:#3e999f;">*</span><span style="color:#f5871f;">econtext</span><span>, </span><span style="color:#8959a8;">bool </span><span style="color:#3e999f;">*</span><span style="color:#f5871f;">isnull</span><span>)
+</span><span>{
+</span><span>	</span><span style="color:#3e999f;">...
+</span><span>	</span><span style="color:#8959a8;">for </span><span>(</span><span style="color:#8959a8;">int</span><span> opno </span><span style="color:#3e999f;">= </span><span style="color:#f5871f;">0</span><span>; opno </span><span style="color:#3e999f;">&lt;</span><span> state-&gt;steps_len; </span><span style="color:#3e999f;">++</span><span>opno)
+</span><span>	{
+</span><span>		ExprEvalStep </span><span style="color:#3e999f;">*</span><span>op </span><span style="color:#3e999f;">= &amp;</span><span>state-&gt;steps[opno];
+</span><span>		</span><span style="color:#8959a8;">switch </span><span>((ExprEvalOp) op-&gt;opcode)
+</span><span>		{
+</span><span>		</span><span style="color:#8959a8;">case</span><span> EEOP_DONE:
+</span><span>		{
+</span><span>			</span><span style="color:#3e999f;">*</span><span>isnull </span><span style="color:#3e999f;">=</span><span> state-&gt;resnull;
+</span><span>			</span><span style="color:#8959a8;">return</span><span> state-&gt;resvalue;
+</span><span>		}
+</span><span>		</span><span style="color:#8959a8;">case</span><span> EEOP_INNER_FETCHSOME:
+</span><span>		{
+</span><span>			</span><span style="color:#c82829;">CheckOpSlotCompatibility</span><span style="color:#4271ae;">(op, innerslot)</span><span>;
+</span><span>			</span><span style="color:#c82829;">slot_getsomeattrs</span><span style="color:#4271ae;">(innerslot, op-&gt;d.</span><span style="color:#c82829;">fetch</span><span style="color:#4271ae;">.</span><span style="color:#c82829;">last_var</span><span style="color:#4271ae;">)</span><span>;
+</span><span>			</span><span style="color:#8959a8;">break</span><span>;
+</span><span>		}
+</span><span>		</span><span style="color:#999999;">/* Other operators... */
+</span><span>		}
+</span><span>	}
+</span><span>	</span><span style="color:#3e999f;">...
+</span><span>}
+</span></code></pre>
+<p>When the LLVM JIT is enabled, before interpreting operators, the LLVM JIT provider will compile these operators into the LLVM IR and the main entry for compiling operators is <a href="https://github.com/postgres/postgres/blob/526fe0d79914b2dfcfd79effd1ab26ff62469248/src/backend/jit/llvm/llvmjit_expr.c#L78"><code>src/backend/jit/llvm/llvmjit_expr.c:llvm_compile_expr</code></a>.</p>
+<pre data-lang="c" style="background-color:#ffffff;color:#4d4d4c;" class="language-c "><code class="language-c" data-lang="c"><span style="color:#8959a8;">bool
+</span><span style="color:#4271ae;">llvm_compile_expr</span><span>(ExprState </span><span style="color:#3e999f;">*</span><span style="color:#f5871f;">state</span><span>)
+</span><span>{
+</span><span>	</span><span style="color:#999999;">/*
+</span><span style="color:#999999;">	 * Emit a function that has similar signature with
+</span><span style="color:#999999;">	 * Datum ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull).
+</span><span style="color:#999999;">	 *
+</span><span style="color:#999999;">	 * NOTE: LLVM never has such API, it&#39;s for easy understanding!
+</span><span style="color:#999999;">	 */
+</span><span>	Func </span><span style="color:#3e999f;">=</span><span> LLVMIRBuilder.</span><span style="color:#c82829;">newFunc</span><span style="color:#4271ae;">(</span><span style="color:#718c00;">&quot;Datum JittedExecInterpExpr(ExprState *, ExprContext *, bool *)&quot;</span><span style="color:#4271ae;">)</span><span>;
+</span><span>	</span><span style="color:#8959a8;">for </span><span>(</span><span style="color:#8959a8;">int</span><span> opno </span><span style="color:#3e999f;">= </span><span style="color:#f5871f;">0</span><span>; opno </span><span style="color:#3e999f;">&lt;</span><span> state-&gt;steps_len; </span><span style="color:#3e999f;">++</span><span>op)
+</span><span>	{
+</span><span>		</span><span style="color:#8959a8;">switch </span><span>((ExprEvalOp) op-&gt;opcode)
+</span><span>		{
+</span><span>		</span><span style="color:#8959a8;">case</span><span> EEOP_DONE:
+</span><span>		{
+</span><span>			</span><span style="color:#999999;">/* Emit LLVM IR for the EEOP_DONE operator */
+</span><span>			Func.</span><span style="color:#c82829;">emit</span><span style="color:#4271ae;">(</span><span style="color:#718c00;">&quot;Assign state-&gt;resnull to *isnull&quot;</span><span style="color:#4271ae;">)</span><span>;
+</span><span>			Func.</span><span style="color:#c82829;">emit</span><span style="color:#4271ae;">(</span><span style="color:#718c00;">&quot;Return state-&gt;resvalue&quot;</span><span style="color:#4271ae;">)</span><span>;
+</span><span>			</span><span style="color:#8959a8;">break</span><span>;
+</span><span>		}
+</span><span>		</span><span style="color:#999999;">/* Emit LLVM IR for other operators... */
+</span><span>		}
+</span><span>	}
+</span><span>	</span><span style="color:#3e999f;">...
+</span><span>	</span><span style="color:#999999;">/*
+</span><span style="color:#999999;">	 * Add the emitted function to the LLVM JIT runtime.
+</span><span style="color:#999999;">	 * EmittedFunc is the address that the jitted function emitted to.
+</span><span style="color:#999999;">	 */
+</span><span>	EmittedFunc </span><span style="color:#3e999f;">=</span><span> LLVMRuntime.</span><span style="color:#c82829;">add</span><span style="color:#4271ae;">(Func)</span><span>;
+</span><span>	</span><span style="color:#3e999f;">...
+</span><span>	</span><span style="color:#999999;">/*
+</span><span style="color:#999999;">	 * Store the emitted function&#39;s address to state-&gt;evalfunc so that the
+</span><span style="color:#999999;">	 * caller will invoke the jitted function.
+</span><span style="color:#999999;">	 */
+</span><span>	state-&gt;evalfunc </span><span style="color:#3e999f;">=</span><span> EmittedFunc;
+</span><span>	</span><span style="color:#3e999f;">...
+</span><span>}
+</span></code></pre>
+<h3 id="jitting-the-tuple-deforming-process">Jitting the tuple deforming process</h3>
+<p>The tuple deforming process is invoked in 3 operators: <code>EEOP_INNER_FETCHSOME</code>, <code>EEOP_OUTER_FETCHSOME</code> and <code>EEOP_SCAN_FETCHSOME</code>. That is to say, if we add the code generation support for these 3 operators then jitting the tuple deforming is supported.</p>
+<h3 id="inlining-functions">Inlining functions</h3>
+<p>If we install the PostgreSQL server with LLVM JIT support, there's a special directory <code>&lt;prefix&gt;/lib/postgresql/bitcode/</code>.</p>
+<pre data-lang="bash" style="background-color:#ffffff;color:#4d4d4c;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#c82829;">$</span><span style="color:#4271ae;"> ls</span><span style="color:#f5871f;"> -al </span><span style="color:#3e999f;">&lt;</span><span style="color:#4271ae;">prefix</span><span style="color:#3e999f;">&gt;</span><span style="color:#4271ae;">/lib/postgresql/bitcode/
+</span><span style="color:#c82829;">total</span><span style="color:#4271ae;"> 2068
+</span><span style="color:#c82829;">drwxr-xr-x</span><span style="color:#4271ae;">  3 v users    4096 Nov  6 23:24 .
+</span><span style="color:#c82829;">drwxr-xr-x</span><span style="color:#4271ae;">  4 v users    4096 Nov  5 09:03 ..
+</span><span style="color:#c82829;">drwxr-xr-x</span><span style="color:#4271ae;"> 28 v users    4096 Oct 22 10:22 postgres
+</span><span style="color:#c82829;">-rw-r--r--</span><span style="color:#4271ae;">  1 v users 2104036 Nov  1 21:25 postgres.index.bc
+</span></code></pre>
+<p>It contains the LLVM bitcodes of the whole server. When the jitted expression is invoking other functions, the server process will look up the function definition from bitcodes. If the function is able to be inlined, that function will be extracted from bitcodes and be placed in the jitted function body. Our prototype will not support inlining functions since I haven't been able to find a way to implement it without LLVM.</p>
+<h2 id="implement-our-own-jit-provider-prototype">Implement our own JIT provider prototype</h2>
+<p>From the above analysis, even if we are not experts of the executor, we are still able to implement an alternative JIT provider for PostgreSQL. Since the emitted function is identical to <a href="https://github.com/postgres/postgres/blob/526fe0d79914b2dfcfd79effd1ab26ff62469248/src/backend/executor/execExprInterp.c#L395"><code>src/backend/executor/execExprInterp.c:ExecInterpExpr</code></a>.</p>
+<h3 id="the-pluggable-jit-interface">The pluggable JIT interface</h3>
+<p>PostgreSQL provides interfaces for implementing JIT providers.</p>
+<pre data-lang="cc" style="background-color:#ffffff;color:#4d4d4c;" class="language-cc "><code class="language-cc" data-lang="cc"><span style="color:#8959a8;">struct </span><span>JitProviderCallbacks
+</span><span>{
+</span><span>  </span><span style="color:#999999;">// For compiling operators to machine codes.
+</span><span>  JitProviderCompileExprCB compile_expr;
+</span><span>  </span><span style="color:#999999;">// For releasing resources after finishing executing the jitted codes.
+</span><span>  JitProviderReleaseContextCB release_context;
+</span><span>  </span><span style="color:#999999;">// For reset some states when there&#39;re errors occurred either during
+</span><span>  </span><span style="color:#999999;">// compiling operators or executing jitted codes.
+</span><span>  JitProviderResetAfterErrorCB reset_after_error;
+</span><span>};
+</span><span>
+</span><span style="color:#8959a8;">extern void </span><span style="color:#4271ae;">_PG_jit_provider_init</span><span>(JitProviderCallbacks </span><span style="color:#3e999f;">*</span><span style="color:#f5871f;">cb</span><span>);
+</span></code></pre>
+<p>Now, we've got basic knowledges about PostgreSQL's JIT provider. Let's get started!</p>
+<h3 id="basic-setup-for-pg-slowjit">Basic setup for <code>pg_slowjit</code></h3>
+<p>We will implement our JIT provider as an extension, since PostgreSQL's extension building framework<sup class="footnote-reference"><a href="#5">5</a></sup> is very handy to use. Let's create a directory <code>pg_slowjit</code> with 3 files in it: <code>Makefile</code>, <code>slowjit.control</code> and <code>slowjit.c</code></p>
+<details>
+  <summary> pg_slowjit/Makefile  (Click me to view the content)</summary>
+<pre data-lang="makefile" style="background-color:#ffffff;color:#4d4d4c;" class="language-makefile "><code class="language-makefile" data-lang="makefile"><span style="color:#c82829;">MODULE_big </span><span style="color:#3e999f;">= </span><span style="color:#718c00;">slowjit
+</span><span style="color:#c82829;">EXTENSION </span><span style="color:#3e999f;">= </span><span style="color:#718c00;">slowjit
+</span><span>
+</span><span style="color:#c82829;">OBJS </span><span style="color:#3e999f;">= </span><span style="color:#718c00;">slowjit.o
+</span><span>
+</span><span style="color:#999999;"># Disable LLVM bitcodes generation.
+</span><span style="color:#8959a8;">override</span><span style="color:#c82829;"> with_llvm </span><span style="color:#3e999f;">= </span><span style="color:#718c00;">no
+</span><span>
+</span><span style="color:#c82829;">PG_CONFIG </span><span style="color:#3e999f;">:= </span><span style="color:#718c00;">pg_config
+</span><span style="color:#c82829;">PGXS </span><span style="color:#3e999f;">:= </span><span style="color:#8959a8;">$(</span><span style="color:#4271ae;">shell </span><span style="color:#8959a8;">$(</span><span style="color:#f5871f;">PG_CONFIG</span><span style="color:#8959a8;">) </span><span style="color:#c82829;">--pgxs</span><span style="color:#8959a8;">)
+</span><span style="color:#8959a8;">include $(</span><span style="color:#f5871f;">PGXS</span><span style="color:#8959a8;">)
+</span></code></pre>
+</details>
+<details>
+  <summary> pg_slowjit/slowjit.control  (Click me to view the content)</summary>
+<pre data-lang="text" style="background-color:#ffffff;color:#4d4d4c;" class="language-text "><code class="language-text" data-lang="text"><span>comment = &#39;A very inefficient jit provider.&#39;
+</span><span>default_version = &#39;1.0.0&#39;
+</span><span>module_pathname = &#39;$libdir/slowjit&#39;
+</span><span>relocatable = true
+</span></code></pre>
+</details>
+<details>
+  <summary> pg_slowjit/slowjit.c  (Click me to view the content)</summary>
+<pre data-lang="c" style="background-color:#ffffff;color:#4d4d4c;" class="language-c "><code class="language-c" data-lang="c"><span style="color:#999999;">/* A bunch of header files. */
+</span><span style="color:#8959a8;">#include </span><span style="color:#718c00;">&quot;postgres.h&quot;
+</span><span>
+</span><span style="color:#8959a8;">#include </span><span style="color:#718c00;">&quot;c.h&quot;
+</span><span style="color:#8959a8;">#include </span><span style="color:#718c00;">&quot;executor/execExpr.h&quot;
+</span><span style="color:#8959a8;">#include </span><span style="color:#718c00;">&quot;fmgr.h&quot;
+</span><span style="color:#8959a8;">#include </span><span style="color:#718c00;">&quot;jit/jit.h&quot;
+</span><span style="color:#8959a8;">#include </span><span style="color:#718c00;">&quot;lib/stringinfo.h&quot;
+</span><span style="color:#8959a8;">#include </span><span style="color:#718c00;">&quot;miscadmin.h&quot;
+</span><span style="color:#8959a8;">#include </span><span style="color:#718c00;">&quot;nodes/execnodes.h&quot;
+</span><span style="color:#8959a8;">#include </span><span style="color:#718c00;">&quot;nodes/pg_list.h&quot;
+</span><span style="color:#8959a8;">#include </span><span style="color:#718c00;">&quot;pg_config_manual.h&quot;
+</span><span style="color:#8959a8;">#include </span><span style="color:#718c00;">&quot;utils/elog.h&quot;
+</span><span style="color:#8959a8;">#include </span><span style="color:#718c00;">&quot;utils/memutils.h&quot;
+</span><span style="color:#8959a8;">#include </span><span style="color:#718c00;">&quot;utils/palloc.h&quot;
+</span><span style="color:#8959a8;">#include </span><span style="color:#718c00;">&quot;utils/resowner.h&quot;
+</span><span style="color:#8959a8;">#include </span><span style="color:#718c00;">&quot;utils/resowner_private.h&quot;
+</span><span>
+</span><span style="color:#8959a8;">#include </span><span style="color:#718c00;">&lt;dlfcn.h&gt;
+</span><span style="color:#8959a8;">#include </span><span style="color:#718c00;">&lt;stdbool.h&gt;
+</span><span style="color:#8959a8;">#include </span><span style="color:#718c00;">&lt;stdint.h&gt;
+</span><span style="color:#8959a8;">#include </span><span style="color:#718c00;">&lt;stdio.h&gt;
+</span><span style="color:#8959a8;">#include </span><span style="color:#718c00;">&lt;stdlib.h&gt;
+</span><span>
+</span><span>PG_MODULE_MAGIC;
+</span><span>
+</span><span style="color:#8959a8;">extern void </span><span style="color:#4271ae;">_PG_jit_provider_init</span><span>(JitProviderCallbacks </span><span style="color:#3e999f;">*</span><span style="color:#f5871f;">cb</span><span>);
+</span><span>
+</span><span style="color:#999999;">/* Function prototypes for JIT compilation. */
+</span><span style="color:#8959a8;">static bool </span><span style="color:#4271ae;">slowjit_compile_expr</span><span>(ExprState </span><span style="color:#3e999f;">*</span><span style="color:#f5871f;">state</span><span>) {
+</span><span>  </span><span style="color:#999999;">/*
+</span><span style="color:#999999;">   * Emit a notice message so that we can check if the JIT provider being
+</span><span style="color:#999999;">   * loaded successfully.
+</span><span style="color:#999999;">   */
+</span><span>  </span><span style="color:#c82829;">elog</span><span style="color:#4271ae;">(NOTICE, </span><span style="color:#718c00;">&quot;slowjit_compile_expr&quot;</span><span style="color:#4271ae;">)</span><span>;
+</span><span>  </span><span style="color:#999999;">/* Returning &#39;false&#39; indicates we won&#39;t jit the current expression. */
+</span><span>  </span><span style="color:#8959a8;">return </span><span style="color:#f5871f;">false</span><span>;
+</span><span>}
+</span><span style="color:#8959a8;">static void </span><span style="color:#4271ae;">slowjit_release_context</span><span>(JitContext </span><span style="color:#3e999f;">*</span><span style="color:#f5871f;">ctx</span><span>) {
+</span><span>  </span><span style="color:#c82829;">elog</span><span style="color:#4271ae;">(NOTICE, </span><span style="color:#718c00;">&quot;slowjit_release_context&quot;</span><span style="color:#4271ae;">)</span><span>;
+</span><span>}
+</span><span style="color:#8959a8;">static void </span><span style="color:#4271ae;">slowjit_reset_after_error</span><span>(</span><span style="color:#8959a8;">void</span><span>) {
+</span><span>  </span><span style="color:#c82829;">elog</span><span style="color:#4271ae;">(NOTICE, </span><span style="color:#718c00;">&quot;slowjit_reset_after_error&quot;</span><span style="color:#4271ae;">)</span><span>;
+</span><span>}
+</span><span>
+</span><span style="color:#999999;">/* Function where we initialize JIT compilation callbacks. */
+</span><span style="color:#8959a8;">void </span><span style="color:#4271ae;">_PG_jit_provider_init</span><span>(JitProviderCallbacks </span><span style="color:#3e999f;">*</span><span style="color:#f5871f;">cb</span><span>) {
+</span><span>  cb-&gt;compile_expr </span><span style="color:#3e999f;">=</span><span> slowjit_compile_expr;
+</span><span>  cb-&gt;release_context </span><span style="color:#3e999f;">=</span><span> slowjit_release_context;
+</span><span>  cb-&gt;reset_after_error </span><span style="color:#3e999f;">=</span><span> slowjit_reset_after_error;
+</span><span>}
+</span></code></pre>
+</details>
+<p>Test that we are able to compile our extension.</p>
+<pre data-lang="bash" style="background-color:#ffffff;color:#4d4d4c;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#c82829;">$</span><span style="color:#4271ae;"> make PG_CONFIG=/</span><span style="color:#3e999f;">&lt;</span><span style="color:#4271ae;">path</span><span style="color:#3e999f;">&gt;</span><span style="color:#4271ae;">/</span><span style="color:#3e999f;">&lt;</span><span style="color:#4271ae;">to</span><span style="color:#3e999f;">&gt;</span><span style="color:#4271ae;">/pg_config install
+</span></code></pre>
+<p>Make sure that PostgreSQL can load our JIT provider.</p>
+<ol>
+<li>
+<p>Edit <code>/&lt;path&gt;/&lt;to&gt;/&lt;DataDir&gt;/postgresql.conf</code> and add following lines.</p>
+<pre data-lang="diff" style="background-color:#ffffff;color:#4d4d4c;" class="language-diff "><code class="language-diff" data-lang="diff"><span style="background-color:#718c00;color:#ffffff;">+ jit_provider=&#39;slowjit&#39; # Tell PostgreSQL to use our JIT provider
+</span><span style="background-color:#718c00;color:#ffffff;">+ jit_above_cost=0       # Force the PostgreSQL to jit expressions
+</span></code></pre>
+</li>
+<li>
+<p>Restart the PostgreSQL server.</p>
+<pre data-lang="bash" style="background-color:#ffffff;color:#4d4d4c;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#c82829;">$</span><span style="color:#4271ae;"> pg_ctl</span><span style="color:#f5871f;"> -D </span><span style="color:#3e999f;">&lt;</span><span style="color:#4271ae;">path</span><span style="color:#3e999f;">&gt;</span><span style="color:#4271ae;">/</span><span style="color:#3e999f;">&lt;</span><span style="color:#4271ae;">to</span><span style="color:#3e999f;">&gt;</span><span style="color:#4271ae;">/</span><span style="color:#3e999f;">&lt;</span><span style="color:#4271ae;">DataDir</span><span style="color:#3e999f;">&gt; </span><span style="color:#4271ae;">-l </span><span style="color:#3e999f;">&lt;</span><span style="color:#4271ae;">path</span><span style="color:#3e999f;">&gt;</span><span style="color:#4271ae;">/</span><span style="color:#3e999f;">&lt;</span><span style="color:#4271ae;">to</span><span style="color:#3e999f;">&gt;</span><span style="color:#4271ae;">/logfile restart
+</span></code></pre>
+</li>
+<li>
+<p>Open the <code>psql</code> client.</p>
+<pre data-lang="sql" style="background-color:#ffffff;color:#4d4d4c;" class="language-sql "><code class="language-sql" data-lang="sql"><span>postgres</span><span style="color:#3e999f;">=</span><span style="color:#999999;"># EXPLAIN SELECT 1;
+</span><span>NOTICE:  slowjit_compile_expr
+</span><span>                QUERY PLAN
+</span><span style="color:#999999;">------------------------------------------
+</span><span> Result  (cost</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">00</span><span>..</span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">01</span><span> rows</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">1</span><span> width</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">4</span><span>)
+</span><span>(</span><span style="color:#f5871f;">1</span><span> row)
+</span></code></pre>
+</li>
+</ol>
+<p>You'll find that the NOTICE message is printed out to our terminal. Our JIT provider has been successfully loaded! 🎉</p>
+<h3 id="context-management-for-pg-slowjit">Context management for <code>pg_slowjit</code></h3>
+<p>You may have noticed that there's a special data structure called <code>JitContext</code>, it tracks allocated resources and records essential information of the current JIT compilation. <code>JitContext::flags</code> controls whether to jit the tuple deforming process (<code>flags &amp; PGJIT_DEFORM</code>), whether to optimize jitted codes aggressively (<code>flags &amp; PGJIT_OPT3</code>), etc. <code>JitContext::resowner</code> records the current resource owner. <code>JitContext::instr</code> records some statistics about the current jitted query, e.g., time consumed in the tuple deforming process, code optimization, function inlining, etc.</p>
+<pre data-lang="c" style="background-color:#ffffff;color:#4d4d4c;" class="language-c "><code class="language-c" data-lang="c"><span style="color:#8959a8;">typedef struct</span><span> JitContext
+</span><span>{
+</span><span>  </span><span style="color:#8959a8;">int</span><span> flags;
+</span><span>  ResourceOwner resowner;
+</span><span>  JitInstrumentation instr;
+</span><span>} JitContext;
+</span></code></pre>
+<p>Different JIT providers can have different resources to track and we can inherit the <code>JitContext</code> for <code>SlowJitContext</code>.</p>
+<pre data-lang="c" style="background-color:#ffffff;color:#4d4d4c;" class="language-c "><code class="language-c" data-lang="c"><span style="color:#8959a8;">typedef struct</span><span> SlowJitContext {
+</span><span>  JitContext base;
+</span><span>  </span><span style="color:#999999;">/* Fields to be implemented later. */
+</span><span>} SlowJitContext;
+</span></code></pre>
+<p>The callback function <code>cb-&gt;compile_expr</code> can be called multiple times for a single query. The <code>JitContext</code> data structure gets initialized when the <code>cb-&gt;compile_expr</code> gets called for the first time. Now, let's initialize our <code>SlowJitContext</code>.</p>
+<details>
+  <summary> pg_slowjit/slowjit.c  (Click me to view the diff)</summary>
+<pre data-lang="diff" style="background-color:#ffffff;color:#4d4d4c;" class="language-diff "><code class="language-diff" data-lang="diff"><span> /* A bunch of header files. */
+</span><span> #include &quot;postgres.h&quot;
+</span><span>
+</span><span> #include &quot;c.h&quot;
+</span><span> #include &quot;executor/execExpr.h&quot;
+</span><span> #include &quot;fmgr.h&quot;
+</span><span> #include &quot;jit/jit.h&quot;
+</span><span> #include &quot;lib/stringinfo.h&quot;
+</span><span> #include &quot;miscadmin.h&quot;
+</span><span> #include &quot;nodes/execnodes.h&quot;
+</span><span> #include &quot;nodes/pg_list.h&quot;
+</span><span> #include &quot;pg_config_manual.h&quot;
+</span><span> #include &quot;utils/elog.h&quot;
+</span><span> #include &quot;utils/memutils.h&quot;
+</span><span> #include &quot;utils/palloc.h&quot;
+</span><span> #include &quot;utils/resowner.h&quot;
+</span><span> #include &quot;utils/resowner_private.h&quot;
+</span><span>
+</span><span> #include &lt;dlfcn.h&gt;
+</span><span> #include &lt;stdbool.h&gt;
+</span><span> #include &lt;stdint.h&gt;
+</span><span> #include &lt;stdio.h&gt;
+</span><span> #include &lt;stdlib.h&gt;
+</span><span>
+</span><span> PG_MODULE_MAGIC;
+</span><span>
+</span><span> extern void _PG_jit_provider_init(JitProviderCallbacks *cb);
+</span><span>
+</span><span style="background-color:#718c00;color:#ffffff;">+ typedef struct SlowJitContext {
+</span><span style="background-color:#718c00;color:#ffffff;">+   JitContext base;
+</span><span style="background-color:#718c00;color:#ffffff;">+   /* Fields to be implemented later. */
+</span><span style="background-color:#718c00;color:#ffffff;">+ } SlowJitContext;
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span> /* Function prototypes for JIT compilation. */
+</span><span> static bool slowjit_compile_expr(ExprState *state) {
+</span><span style="background-color:#718c00;color:#ffffff;">+  PlanState *parent = state-&gt;parent;
+</span><span style="background-color:#718c00;color:#ffffff;">+  SlowJitContext *jit_ctx = NULL;
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+  /* parent shouldn&#39;t be NULL. */
+</span><span style="background-color:#718c00;color:#ffffff;">+  Assert(parent != NULL);
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span>   /*
+</span><span> 	 * Emit a notice message so that we can check if the JIT provider being
+</span><span> 	 * loaded successfully.
+</span><span> 	 */
+</span><span>   elog(NOTICE, &quot;slowjit_compile_expr&quot;);
+</span><span>
+</span><span style="background-color:#718c00;color:#ffffff;">+  /* Initialize the context. */
+</span><span style="background-color:#718c00;color:#ffffff;">+  if (parent-&gt;state-&gt;es_jit) {
+</span><span style="background-color:#718c00;color:#ffffff;">+    /*
+</span><span style="background-color:#718c00;color:#ffffff;">+     * We can reuse the JIT context.
+</span><span style="background-color:#718c00;color:#ffffff;">+     */
+</span><span style="background-color:#718c00;color:#ffffff;">+    jit_ctx = (SlowJitContext *)parent-&gt;state-&gt;es_jit;
+</span><span style="background-color:#718c00;color:#ffffff;">+  } else {
+</span><span style="background-color:#718c00;color:#ffffff;">+    ResourceOwnerEnlargeJIT(CurrentResourceOwner);
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+    jit_ctx = (SlowJitContext *)MemoryContextAllocZero(TopMemoryContext,
+</span><span style="background-color:#718c00;color:#ffffff;">+                                                       sizeof(SlowJitContext));
+</span><span style="background-color:#718c00;color:#ffffff;">+    jit_ctx-&gt;base.flags = parent-&gt;state-&gt;es_jit_flags;
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+    /* ensure cleanup */
+</span><span style="background-color:#718c00;color:#ffffff;">+    jit_ctx-&gt;base.resowner = CurrentResourceOwner;
+</span><span style="background-color:#718c00;color:#ffffff;">+    ResourceOwnerRememberJIT(CurrentResourceOwner, PointerGetDatum(jit_ctx));
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+    /* For re-using the JIT context. */
+</span><span style="background-color:#718c00;color:#ffffff;">+    parent-&gt;state-&gt;es_jit = &amp;jit_ctx-&gt;base;
+</span><span style="background-color:#718c00;color:#ffffff;">+  }
+</span><span>
+</span><span>   /* Returning &#39;false&#39; indicates we won&#39;t jit the current expression. */
+</span><span>   return false;
+</span><span> }
+</span><span> static void slowjit_release_context(JitContext *ctx) {
+</span><span>   elog(NOTICE, &quot;slowjit_release_context&quot;);
+</span><span> }
+</span><span> static void slowjit_reset_after_error(void) {
+</span><span>   elog(NOTICE, &quot;slowjit_reset_after_error&quot;);
+</span><span> }
+</span><span>
+</span><span> /* Function where we initialize JIT compilation callbacks. */
+</span><span> void _PG_jit_provider_init(JitProviderCallbacks *cb) {
+</span><span>   cb-&gt;compile_expr = slowjit_compile_expr;
+</span><span>   cb-&gt;release_context = slowjit_release_context;
+</span><span>   cb-&gt;reset_after_error = slowjit_reset_after_error;
+</span><span> }
+</span></code></pre>
+</details>
+<p>Re-compile our JIT provider by</p>
+<pre data-lang="bash" style="background-color:#ffffff;color:#4d4d4c;" class="language-bash "><code class="language-bash" data-lang="bash"><span style="color:#c82829;">$</span><span style="color:#4271ae;"> make PG_CONFIG=/</span><span style="color:#3e999f;">&lt;</span><span style="color:#4271ae;">path</span><span style="color:#3e999f;">&gt;</span><span style="color:#4271ae;">/</span><span style="color:#3e999f;">&lt;</span><span style="color:#4271ae;">to</span><span style="color:#3e999f;">&gt;</span><span style="color:#4271ae;">/pg_config install
+</span></code></pre>
+<p>Re-run the query and you'll find that <code>slowjit_release_context</code> gets called! That is to say, resources being tracked in <code>SlowJitContext</code> can be released in <code>slowjit_release_context</code>.</p>
+<pre data-lang="sql" style="background-color:#ffffff;color:#4d4d4c;" class="language-sql "><code class="language-sql" data-lang="sql"><span>postgres</span><span style="color:#3e999f;">=</span><span style="color:#999999;"># EXPLAIN SELECT 1;
+</span><span>NOTICE:  slowjit_compile_expr
+</span><span>NOTICE:  slowjit_release_context
+</span><span>                QUERY PLAN
+</span><span style="color:#999999;">------------------------------------------
+</span><span> Result  (cost</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">00</span><span>..</span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">01</span><span> rows</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">1</span><span> width</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">4</span><span>)
+</span><span>(</span><span style="color:#f5871f;">1</span><span> row)
+</span></code></pre>
+<h3 id="code-generation">Code generation</h3>
+<p>As we have mentioned above, <code>pg_slowjit</code> emits C codes and compile C codes to shared libraries to jit expressions. I learned it from Andy Pavlo's database lecture<sup class="footnote-reference"><a href="#6">6</a></sup>. It's easy to implement and quite interesting. I didn't even realize that a C compiler could be a JIT compiler before watching the lecture. In this section, we will emit a function with name <code>slowjit_eval_expr_&lt;MyProcPid&gt;_&lt;module_generation&gt;</code>, where <code>MyProcPid</code> is the process id of the current server process and <code>module_generation</code> is the number of emitted functions. We add these two variables to the emitted function to avoid symbol collision since there might be multiple functions being emitted for a single query. By now, We have nothing to emit but some comments like: "<code>// OP(&lt;opcode&gt;) to implement</code>".</p>
+<details>
+  <summary> pg_slowjit/slowjit.c  (Click me to view the diff)</summary>
+<pre data-lang="diff" style="background-color:#ffffff;color:#4d4d4c;" class="language-diff "><code class="language-diff" data-lang="diff"><span> /* A bunch of header files. */
+</span><span> #include &quot;postgres.h&quot;
+</span><span> 
+</span><span> #include &quot;c.h&quot;
+</span><span> #include &quot;executor/execExpr.h&quot;
+</span><span> #include &quot;fmgr.h&quot;
+</span><span> #include &quot;jit/jit.h&quot;
+</span><span> #include &quot;lib/stringinfo.h&quot;
+</span><span> #include &quot;miscadmin.h&quot;
+</span><span> #include &quot;nodes/execnodes.h&quot;
+</span><span> #include &quot;nodes/pg_list.h&quot;
+</span><span> #include &quot;pg_config_manual.h&quot;
+</span><span> #include &quot;utils/elog.h&quot;
+</span><span> #include &quot;utils/memutils.h&quot;
+</span><span> #include &quot;utils/palloc.h&quot;
+</span><span> #include &quot;utils/resowner.h&quot;
+</span><span> #include &quot;utils/resowner_private.h&quot;
+</span><span> 
+</span><span> #include &lt;dlfcn.h&gt;
+</span><span> #include &lt;stdbool.h&gt;
+</span><span> #include &lt;stdint.h&gt;
+</span><span> #include &lt;stdio.h&gt;
+</span><span> #include &lt;stdlib.h&gt;
+</span><span> 
+</span><span> PG_MODULE_MAGIC;
+</span><span> 
+</span><span style="background-color:#718c00;color:#ffffff;">+/*
+</span><span style="background-color:#718c00;color:#ffffff;">+ * To avoid symbol name collision, we use this variable to count the number of
+</span><span style="background-color:#718c00;color:#ffffff;">+ * emitted functions and use it as a part of the emitted function&#39;s name.
+</span><span style="background-color:#718c00;color:#ffffff;">+ */
+</span><span style="background-color:#718c00;color:#ffffff;">+static int module_generation = 0;
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span> extern void _PG_jit_provider_init(JitProviderCallbacks *cb);
+</span><span> 
+</span><span> typedef struct SlowJitContext {
+</span><span>   JitContext base;
+</span><span>   /* Fields to be implemented later. */
+</span><span> } SlowJitContext;
+</span><span> 
+</span><span> /* Function prototypes for JIT compilation. */
+</span><span> static bool slowjit_compile_expr(ExprState *state) {
+</span><span>   PlanState *parent = state-&gt;parent;
+</span><span>   SlowJitContext *jit_ctx = NULL;
+</span><span style="background-color:#718c00;color:#ffffff;">+  /* The name of the emitted function. */
+</span><span style="background-color:#718c00;color:#ffffff;">+  char symbol_name[MAXPGPATH];
+</span><span style="background-color:#718c00;color:#ffffff;">+  /* Buffer to hold emitted C codes. */
+</span><span style="background-color:#718c00;color:#ffffff;">+  StringInfoData code_holder;
+</span><span> 
+</span><span>   /* parent shouldn&#39;t be NULL. */
+</span><span>   Assert(parent != NULL);
+</span><span> 
+</span><span>   /*
+</span><span>    * Emit a notice message so that we can check if the JIT provider being
+</span><span>    * loaded successfully.
+</span><span>    */
+</span><span>   elog(NOTICE, &quot;slowjit_compile_expr&quot;);
+</span><span> 
+</span><span>   /* Initialize the context. */
+</span><span>   if (parent-&gt;state-&gt;es_jit) {
+</span><span>     /*
+</span><span>      * We can reuse the JIT context.
+</span><span>      */
+</span><span>     jit_ctx = (SlowJitContext *)parent-&gt;state-&gt;es_jit;
+</span><span>   } else {
+</span><span>     ResourceOwnerEnlargeJIT(CurrentResourceOwner);
+</span><span> 
+</span><span>     jit_ctx = (SlowJitContext *)MemoryContextAllocZero(TopMemoryContext,
+</span><span>                                                        sizeof(SlowJitContext));
+</span><span>     jit_ctx-&gt;base.flags = parent-&gt;state-&gt;es_jit_flags;
+</span><span> 
+</span><span>     /* ensure cleanup */
+</span><span>     jit_ctx-&gt;base.resowner = CurrentResourceOwner;
+</span><span>     ResourceOwnerRememberJIT(CurrentResourceOwner, PointerGetDatum(jit_ctx));
+</span><span> 
+</span><span>     /* For re-using the JIT context. */
+</span><span>     parent-&gt;state-&gt;es_jit = &amp;jit_ctx-&gt;base;
+</span><span>   }
+</span><span> 
+</span><span style="background-color:#718c00;color:#ffffff;">+  initStringInfo(&amp;code_holder);
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+#define emit_line(...)                                                         \
+</span><span style="background-color:#718c00;color:#ffffff;">+  do {                                                                         \
+</span><span style="background-color:#718c00;color:#ffffff;">+    appendStringInfo(&amp;code_holder, __VA_ARGS__);                               \
+</span><span style="background-color:#718c00;color:#ffffff;">+    appendStringInfoChar(&amp;code_holder, &#39;\n&#39;);                                  \
+</span><span style="background-color:#718c00;color:#ffffff;">+  } while (0)
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+#define emit_include(header) emit_line(&quot;#include \&quot;%s\&quot;&quot;, header)
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+  emit_include(&quot;postgres.h&quot;);
+</span><span style="background-color:#718c00;color:#ffffff;">+  emit_include(&quot;nodes/execnodes.h&quot;);
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+  /*
+</span><span style="background-color:#718c00;color:#ffffff;">+   * Emit the jitted function signature.
+</span><span style="background-color:#718c00;color:#ffffff;">+   * We use MyProcPid and module_generation to avoid symbol name collision.
+</span><span style="background-color:#718c00;color:#ffffff;">+   */
+</span><span style="background-color:#718c00;color:#ffffff;">+  snprintf(symbol_name, MAXPGPATH, &quot;slowjit_eval_expr_%d_%d&quot;, MyProcPid,
+</span><span style="background-color:#718c00;color:#ffffff;">+           module_generation);
+</span><span style="background-color:#718c00;color:#ffffff;">+  emit_line(&quot;Datum %s(ExprState *state, ExprContext *econtext, bool *isnull)&quot;,
+</span><span style="background-color:#718c00;color:#ffffff;">+            symbol_name);
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+  /* Open function body. */
+</span><span style="background-color:#718c00;color:#ffffff;">+  emit_line(&quot;{&quot;);
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+  for (int opno = 0; opno &lt; state-&gt;steps_len; ++opno) {
+</span><span style="background-color:#718c00;color:#ffffff;">+    ExprEvalStep *op;
+</span><span style="background-color:#718c00;color:#ffffff;">+    ExprEvalOp opcode;
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+    op = &amp;state-&gt;steps[opno];
+</span><span style="background-color:#718c00;color:#ffffff;">+    opcode = ExecEvalStepOp(state, op);
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+    switch (opcode) {
+</span><span style="background-color:#718c00;color:#ffffff;">+    default: {
+</span><span style="background-color:#718c00;color:#ffffff;">+      emit_line(&quot;// OP(%d) to implement&quot;, opcode);
+</span><span style="background-color:#718c00;color:#ffffff;">+    }
+</span><span style="background-color:#718c00;color:#ffffff;">+    }
+</span><span style="background-color:#718c00;color:#ffffff;">+  }
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+  /* Close function body. */
+</span><span style="background-color:#718c00;color:#ffffff;">+  emit_line(&quot;}&quot;);
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+  /* Print the emitted function to the psql console. */
+</span><span style="background-color:#718c00;color:#ffffff;">+  elog(NOTICE, &quot;\n%s&quot;, code_holder.data);
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span>   /* Returning &#39;false&#39; indicates we won&#39;t jit the current expression. */
+</span><span>   return false;
+</span><span> }
+</span><span> static void slowjit_release_context(JitContext *ctx) {
+</span><span>   elog(NOTICE, &quot;slowjit_release_context&quot;);
+</span><span> }
+</span><span> static void slowjit_reset_after_error(void) {
+</span><span>   elog(NOTICE, &quot;slowjit_reset_after_error&quot;);
+</span><span> }
+</span><span> 
+</span><span> /* Function where we initialize JIT compilation callbacks. */
+</span><span> void _PG_jit_provider_init(JitProviderCallbacks *cb) {
+</span><span>   cb-&gt;compile_expr = slowjit_compile_expr;
+</span><span>   cb-&gt;release_context = slowjit_release_context;
+</span><span>   cb-&gt;reset_after_error = slowjit_reset_after_error;
+</span><span> }
+</span></code></pre>
+</details>
+<p>Re-compile the module and re-run the query <code>SELECT 1</code>.</p>
+<pre data-lang="sql" style="background-color:#ffffff;color:#4d4d4c;" class="language-sql "><code class="language-sql" data-lang="sql"><span>postgres</span><span style="color:#3e999f;">=</span><span style="color:#999999;"># EXPLAIN SELECT 1;
+</span><span>NOTICE:  slowjit_compile_expr
+</span><span>NOTICE:
+</span><span style="color:#999999;">#include &quot;postgres.h&quot;
+</span><span style="color:#999999;">#include &quot;nodes/execnodes.h&quot;
+</span><span>Datum slowjit_eval_expr_89791_0(ExprState </span><span style="color:#c82829;">*</span><span>state, ExprContext </span><span style="color:#c82829;">*</span><span>econtext, bool </span><span style="color:#c82829;">*</span><span>isnull)
+</span><span>{
+</span><span style="color:#3e999f;">//</span><span> OP(</span><span style="color:#f5871f;">16</span><span>) to implement
+</span><span style="color:#3e999f;">//</span><span> OP(</span><span style="color:#f5871f;">14</span><span>) to implement
+</span><span style="color:#3e999f;">//</span><span> OP(</span><span style="color:#f5871f;">0</span><span>) to implement
+</span><span>}
+</span><span>
+</span><span>NOTICE:  slowjit_release_context
+</span><span>                QUERY PLAN
+</span><span style="color:#999999;">------------------------------------------
+</span><span> Result  (cost</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">00</span><span>..</span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">01</span><span> rows</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">1</span><span> width</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">4</span><span>)
+</span><span>(</span><span style="color:#f5871f;">1</span><span> row)
+</span></code></pre>
+<p>In order to jit the simplest query <code>SELECT 1</code>, we need to implement 3 operators: <code>EEOP_CONST (16)</code>, <code>EEOP_ASSIGN_TMP (14)</code>, <code>EEOP_DONE (0)</code>. Remember what we have mentioned in <a href="/archive/implementing-jit-provider-for-pgsql/#implement-our-own-jit-provider-prototype">the begining of this chapter</a>?</p>
+<blockquote>
+<p>The emitted function is identical to <a href="https://github.com/postgres/postgres/blob/526fe0d79914b2dfcfd79effd1ab26ff62469248/src/backend/executor/execExprInterp.c#L395"><code>src/backend/executor/execExprInterp.c:ExecInterpExpr</code></a>.</p>
+</blockquote>
+<p>The implementation of these 3 operators looks like:</p>
+<pre data-lang="c" style="background-color:#ffffff;color:#4d4d4c;" class="language-c "><code class="language-c" data-lang="c"><span>  </span><span style="color:#c82829;">EEO_CASE</span><span>(EEOP_DONE)
+</span><span>  {
+</span><span>    </span><span style="color:#8959a8;">goto</span><span> out;
+</span><span>  }
+</span><span>  </span><span style="color:#3e999f;">...
+</span><span>  </span><span style="color:#c82829;">EEO_CASE</span><span>(EEOP_ASSIGN_TMP)
+</span><span>  {
+</span><span>    </span><span style="color:#8959a8;">int</span><span> resultnum </span><span style="color:#3e999f;">=</span><span> op-&gt;d.</span><span style="color:#c82829;">assign_tmp</span><span>.</span><span style="color:#c82829;">resultnum</span><span>;
+</span><span>    </span><span style="color:#c82829;">Assert</span><span style="color:#4271ae;">(resultnum </span><span style="color:#3e999f;">&gt;= </span><span style="color:#f5871f;">0 </span><span style="color:#3e999f;">&amp;&amp;</span><span style="color:#4271ae;"> resultnum </span><span style="color:#3e999f;">&lt;</span><span style="color:#4271ae;"> resultslot-&gt;tts_tupleDescriptor-&gt;natts)</span><span>;
+</span><span>    resultslot-&gt;tts_values[resultnum] </span><span style="color:#3e999f;">=</span><span> state-&gt;resvalue;
+</span><span>    resultslot-&gt;tts_isnull[resultnum] </span><span style="color:#3e999f;">=</span><span> state-&gt;resnull;
+</span><span>    </span><span style="color:#c82829;">EEO_NEXT</span><span style="color:#4271ae;">()</span><span>;
+</span><span>  }
+</span><span>  </span><span style="color:#3e999f;">...
+</span><span>  </span><span style="color:#c82829;">EEO_CASE</span><span>(EEOP_CONST)
+</span><span>  {
+</span><span>    </span><span style="color:#3e999f;">*</span><span>op-&gt;resnull </span><span style="color:#3e999f;">=</span><span> op-&gt;d.</span><span style="color:#c82829;">constval</span><span>.</span><span style="color:#c82829;">isnull</span><span>;
+</span><span>    </span><span style="color:#3e999f;">*</span><span>op-&gt;resvalue </span><span style="color:#3e999f;">=</span><span> op-&gt;d.</span><span style="color:#c82829;">constval</span><span>.</span><span style="color:#c82829;">value</span><span>;
+</span><span>    </span><span style="color:#c82829;">EEO_NEXT</span><span style="color:#4271ae;">()</span><span>;
+</span><span>  }
+</span><span>  </span><span style="color:#3e999f;">...
+</span><span>out</span><span style="color:#3e999f;">:
+</span><span>  </span><span style="color:#3e999f;">*</span><span>isnull </span><span style="color:#3e999f;">=</span><span> state-&gt;resnull;
+</span><span>  </span><span style="color:#8959a8;">return</span><span> state-&gt;resvalue;
+</span></code></pre>
+<p>We can copy&amp;paste the logic to <code>slowjit_compile_expr</code>.</p>
+<details>
+  <summary> pg_slowjit/slowjit.c  (Click me to view the diff)</summary>
+<pre data-lang="diff" style="background-color:#ffffff;color:#4d4d4c;" class="language-diff "><code class="language-diff" data-lang="diff"><span> /* A bunch of header files. */
+</span><span> #include &quot;postgres.h&quot;
+</span><span> 
+</span><span> #include &quot;c.h&quot;
+</span><span> #include &quot;executor/execExpr.h&quot;
+</span><span> #include &quot;fmgr.h&quot;
+</span><span> #include &quot;jit/jit.h&quot;
+</span><span> #include &quot;lib/stringinfo.h&quot;
+</span><span> #include &quot;miscadmin.h&quot;
+</span><span> #include &quot;nodes/execnodes.h&quot;
+</span><span> #include &quot;nodes/pg_list.h&quot;
+</span><span> #include &quot;pg_config_manual.h&quot;
+</span><span> #include &quot;utils/elog.h&quot;
+</span><span> #include &quot;utils/memutils.h&quot;
+</span><span> #include &quot;utils/palloc.h&quot;
+</span><span> #include &quot;utils/resowner.h&quot;
+</span><span> #include &quot;utils/resowner_private.h&quot;
+</span><span> 
+</span><span> #include &lt;dlfcn.h&gt;
+</span><span> #include &lt;stdbool.h&gt;
+</span><span> #include &lt;stdint.h&gt;
+</span><span> #include &lt;stdio.h&gt;
+</span><span> #include &lt;stdlib.h&gt;
+</span><span> 
+</span><span> PG_MODULE_MAGIC;
+</span><span> 
+</span><span> /*
+</span><span>  * To avoid symbol name collision, we use this variable to count the number of
+</span><span>  * emitted functions and use it as a part of the emitted function&#39;s name.
+</span><span>  */
+</span><span> static int module_generation = 0;
+</span><span> 
+</span><span> extern void _PG_jit_provider_init(JitProviderCallbacks *cb);
+</span><span> 
+</span><span> typedef struct SlowJitContext {
+</span><span>   JitContext base;
+</span><span>   /* Fields to be implemented later. */
+</span><span> } SlowJitContext;
+</span><span> 
+</span><span> /* Function prototypes for JIT compilation. */
+</span><span> static bool slowjit_compile_expr(ExprState *state) {
+</span><span>   PlanState *parent = state-&gt;parent;
+</span><span>   SlowJitContext *jit_ctx = NULL;
+</span><span>   /* The name of the emitted function. */
+</span><span>   char symbol_name[MAXPGPATH];
+</span><span>   /* Buffer to hold emitted C codes. */
+</span><span>   StringInfoData code_holder;
+</span><span> 
+</span><span>   /* parent shouldn&#39;t be NULL. */
+</span><span>   Assert(parent != NULL);
+</span><span> 
+</span><span>   /*
+</span><span>    * Emit a notice message so that we can check if the JIT provider being
+</span><span>    * loaded successfully.
+</span><span>    */
+</span><span>   elog(NOTICE, &quot;slowjit_compile_expr&quot;);
+</span><span> 
+</span><span>   /* Initialize the context. */
+</span><span>   if (parent-&gt;state-&gt;es_jit) {
+</span><span>     /*
+</span><span>      * We can reuse the JIT context.
+</span><span>      */
+</span><span>     jit_ctx = (SlowJitContext *)parent-&gt;state-&gt;es_jit;
+</span><span>   } else {
+</span><span>     ResourceOwnerEnlargeJIT(CurrentResourceOwner);
+</span><span> 
+</span><span>     jit_ctx = (SlowJitContext *)MemoryContextAllocZero(TopMemoryContext,
+</span><span>                                                        sizeof(SlowJitContext));
+</span><span>     jit_ctx-&gt;base.flags = parent-&gt;state-&gt;es_jit_flags;
+</span><span> 
+</span><span>     /* ensure cleanup */
+</span><span>     jit_ctx-&gt;base.resowner = CurrentResourceOwner;
+</span><span>     ResourceOwnerRememberJIT(CurrentResourceOwner, PointerGetDatum(jit_ctx));
+</span><span> 
+</span><span>     /* For re-using the JIT context. */
+</span><span>     parent-&gt;state-&gt;es_jit = &amp;jit_ctx-&gt;base;
+</span><span>   }
+</span><span> 
+</span><span>   initStringInfo(&amp;code_holder);
+</span><span> 
+</span><span> #define emit_line(...)                                                         \
+</span><span>   do {                                                                         \
+</span><span>     appendStringInfo(&amp;code_holder, __VA_ARGS__);                               \
+</span><span>     appendStringInfoChar(&amp;code_holder, &#39;\n&#39;);                                  \
+</span><span>   } while (0)
+</span><span> 
+</span><span> #define emit_include(header) emit_line(&quot;#include \&quot;%s\&quot;&quot;, header)
+</span><span> 
+</span><span>   emit_include(&quot;postgres.h&quot;);
+</span><span>   emit_include(&quot;nodes/execnodes.h&quot;);
+</span><span> 
+</span><span>   /*
+</span><span>    * Emit the jitted function signature.
+</span><span>    * We use MyProcPid and module_generation to avoid symbol name collision.
+</span><span>    */
+</span><span>   snprintf(symbol_name, MAXPGPATH, &quot;slowjit_eval_expr_%d_%d&quot;, MyProcPid,
+</span><span>            module_generation);
+</span><span>   emit_line(&quot;Datum %s(ExprState *state, ExprContext *econtext, bool *isnull)&quot;,
+</span><span>             symbol_name);
+</span><span> 
+</span><span>   /* Open function body. */
+</span><span>   emit_line(&quot;{&quot;);
+</span><span> 
+</span><span>   for (int opno = 0; opno &lt; state-&gt;steps_len; ++opno) {
+</span><span>     ExprEvalStep *op;
+</span><span>     ExprEvalOp opcode;
+</span><span> 
+</span><span>     op = &amp;state-&gt;steps[opno];
+</span><span>     opcode = ExecEvalStepOp(state, op);
+</span><span> 
+</span><span>     switch (opcode) {
+</span><span style="background-color:#718c00;color:#ffffff;">+    case EEOP_DONE: {
+</span><span style="background-color:#718c00;color:#ffffff;">+      emit_line(&quot;  { // EEOP_DONE&quot;);
+</span><span style="background-color:#718c00;color:#ffffff;">+      emit_line(&quot;    *isnull = state-&gt;resnull;&quot;);
+</span><span style="background-color:#718c00;color:#ffffff;">+      emit_line(&quot;  }&quot;);
+</span><span style="background-color:#718c00;color:#ffffff;">+      emit_line(&quot;  return state-&gt;resvalue;&quot;);
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+      /* Close function boday. */
+</span><span style="background-color:#718c00;color:#ffffff;">+      emit_line(&quot;}&quot;);
+</span><span style="background-color:#718c00;color:#ffffff;">+      break;
+</span><span style="background-color:#718c00;color:#ffffff;">+    }
+</span><span style="background-color:#718c00;color:#ffffff;">+    case EEOP_ASSIGN_TMP: {
+</span><span style="background-color:#718c00;color:#ffffff;">+      int resultnum = op-&gt;d.assign_tmp.resultnum;
+</span><span style="background-color:#718c00;color:#ffffff;">+      emit_line(&quot;  { // EEOP_ASSIGN_TMP&quot;);
+</span><span style="background-color:#718c00;color:#ffffff;">+      emit_line(&quot;    TupleTableSlot *resultslot = state-&gt;resultslot;&quot;);
+</span><span style="background-color:#718c00;color:#ffffff;">+      emit_line(&quot;    resultslot-&gt;tts_values[%d] = state-&gt;resvalue;&quot;, resultnum);
+</span><span style="background-color:#718c00;color:#ffffff;">+      emit_line(&quot;    resultslot-&gt;tts_isnull[%d] = state-&gt;resnull;&quot;, resultnum);
+</span><span style="background-color:#718c00;color:#ffffff;">+      emit_line(&quot;  }&quot;);
+</span><span style="background-color:#718c00;color:#ffffff;">+      break;
+</span><span style="background-color:#718c00;color:#ffffff;">+    }
+</span><span style="background-color:#718c00;color:#ffffff;">+    case EEOP_CONST: {
+</span><span style="background-color:#718c00;color:#ffffff;">+      emit_line(&quot;  { // EEOP_CONST&quot;);
+</span><span style="background-color:#718c00;color:#ffffff;">+      emit_line(&quot;    bool *resnull = (bool *) %lu;&quot;, (uint64_t)op-&gt;resnull);
+</span><span style="background-color:#718c00;color:#ffffff;">+      emit_line(&quot;    Datum *resvalue = (Datum *) %lu;&quot;, (uint64_t)op-&gt;resvalue);
+</span><span style="background-color:#718c00;color:#ffffff;">+      emit_line(&quot;    *resnull = (bool) %d;&quot;, op-&gt;d.constval.isnull);
+</span><span style="background-color:#718c00;color:#ffffff;">+      emit_line(&quot;    *resvalue = (Datum) %luull;&quot;, op-&gt;d.constval.value);
+</span><span style="background-color:#718c00;color:#ffffff;">+      emit_line(&quot;  }&quot;);
+</span><span style="background-color:#718c00;color:#ffffff;">+      break;
+</span><span style="background-color:#718c00;color:#ffffff;">+    }
+</span><span>     default: {
+</span><span>       emit_line(&quot;// OP(%d) to implement&quot;, opcode);
+</span><span>     }
+</span><span>     }
+</span><span>   }
+</span><span> 
+</span><span style="background-color:#c82829;color:#ffffff;">-  /* Close function body. */
+</span><span style="background-color:#c82829;color:#ffffff;">-  emit_line(&quot;}&quot;);
+</span><span style="background-color:#c82829;color:#ffffff;">-
+</span><span>   /* Print the emitted function to the psql console. */
+</span><span>   elog(NOTICE, &quot;\n%s&quot;, code_holder.data);
+</span><span> 
+</span><span>   /* Returning &#39;false&#39; indicates we won&#39;t jit the current expression. */
+</span><span>   return false;
+</span><span> }
+</span><span> static void slowjit_release_context(JitContext *ctx) {
+</span><span>   elog(NOTICE, &quot;slowjit_release_context&quot;);
+</span><span> }
+</span><span> static void slowjit_reset_after_error(void) {
+</span><span>   elog(NOTICE, &quot;slowjit_reset_after_error&quot;);
+</span><span> }
+</span><span> 
+</span><span> /* Function where we initialize JIT compilation callbacks. */
+</span><span> void _PG_jit_provider_init(JitProviderCallbacks *cb) {
+</span><span>   cb-&gt;compile_expr = slowjit_compile_expr;
+</span><span>   cb-&gt;release_context = slowjit_release_context;
+</span><span>   cb-&gt;reset_after_error = slowjit_reset_after_error;
+</span><span> }
+</span></code></pre>
+</details>
+<p>Again, re-compile the module and re-run the <code>SELECT 1</code> query.</p>
+<pre data-lang="sql" style="background-color:#ffffff;color:#4d4d4c;" class="language-sql "><code class="language-sql" data-lang="sql"><span>postgres</span><span style="color:#3e999f;">=</span><span style="color:#999999;"># EXPLAIN SELECT 1;
+</span><span>NOTICE:  slowjit_compile_expr
+</span><span>NOTICE:
+</span><span style="color:#999999;">#include &quot;postgres.h&quot;
+</span><span style="color:#999999;">#include &quot;nodes/execnodes.h&quot;
+</span><span>Datum slowjit_eval_expr_113916_0(ExprState </span><span style="color:#c82829;">*</span><span>state, ExprContext </span><span style="color:#c82829;">*</span><span>econtext, bool </span><span style="color:#c82829;">*</span><span>isnull)
+</span><span>{
+</span><span>  { </span><span style="color:#3e999f;">//</span><span> EEOP_CONST
+</span><span>    bool </span><span style="color:#c82829;">*</span><span>resnull </span><span style="color:#3e999f;">=</span><span> (bool </span><span style="color:#c82829;">*</span><span>) </span><span style="color:#f5871f;">94251888729381</span><span>;
+</span><span>    Datum </span><span style="color:#c82829;">*</span><span>resvalue </span><span style="color:#3e999f;">=</span><span> (Datum </span><span style="color:#c82829;">*</span><span>) </span><span style="color:#f5871f;">94251888729384</span><span>;
+</span><span>    </span><span style="color:#c82829;">*</span><span>resnull </span><span style="color:#3e999f;">=</span><span> (bool) </span><span style="color:#f5871f;">0</span><span>;
+</span><span>    </span><span style="color:#c82829;">*</span><span>resvalue </span><span style="color:#3e999f;">=</span><span> (Datum) 1ull;
+</span><span>  }
+</span><span>  { </span><span style="color:#3e999f;">//</span><span> EEOP_ASSIGN_TMP
+</span><span>    TupleTableSlot </span><span style="color:#c82829;">*</span><span>resultslot </span><span style="color:#3e999f;">=</span><span> state</span><span style="color:#3e999f;">-&gt;</span><span>resultslot;
+</span><span>    resultslot</span><span style="color:#3e999f;">-&gt;</span><span>tts_values[</span><span style="color:#f5871f;">0</span><span>] </span><span style="color:#3e999f;">=</span><span> state</span><span style="color:#3e999f;">-&gt;</span><span>resvalue;
+</span><span>    resultslot</span><span style="color:#3e999f;">-&gt;</span><span>tts_isnull[</span><span style="color:#f5871f;">0</span><span>] </span><span style="color:#3e999f;">=</span><span> state</span><span style="color:#3e999f;">-&gt;</span><span>resnull;
+</span><span>  }
+</span><span>  { </span><span style="color:#3e999f;">//</span><span> EEOP_DONE
+</span><span>    </span><span style="color:#c82829;">*</span><span>isnull </span><span style="color:#3e999f;">=</span><span> state</span><span style="color:#3e999f;">-&gt;</span><span>resnull;
+</span><span>  }
+</span><span>  return state</span><span style="color:#3e999f;">-&gt;</span><span>resvalue;
+</span><span>}
+</span><span>
+</span><span>NOTICE:  slowjit_release_context
+</span><span>                QUERY PLAN
+</span><span style="color:#999999;">------------------------------------------
+</span><span> Result  (cost</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">00</span><span>..</span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">01</span><span> rows</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">1</span><span> width</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">4</span><span>)
+</span><span>(</span><span style="color:#f5871f;">1</span><span> row)
+</span></code></pre>
+<h3 id="compile-and-load-the-emitted-function">Compile and load the emitted function</h3>
+<p>To complete our JIT provider, we need to replace the function for executing low level opcodes to our emitted function. The basic idea is compiling the emitted function to a shared library and load the function from the library via <code>dlopen()</code> and <code>dlsym()</code>.</p>
+<details>
+  <summary> pg_slowjit/slowjit.c  (Click me to view the diff)</summary>
+<pre data-lang="diff" style="background-color:#ffffff;color:#4d4d4c;" class="language-diff "><code class="language-diff" data-lang="diff"><span> /* A bunch of header files. */
+</span><span> #include &quot;postgres.h&quot;
+</span><span> 
+</span><span> #include &quot;c.h&quot;
+</span><span> #include &quot;executor/execExpr.h&quot;
+</span><span> #include &quot;fmgr.h&quot;
+</span><span> #include &quot;jit/jit.h&quot;
+</span><span> #include &quot;lib/stringinfo.h&quot;
+</span><span> #include &quot;miscadmin.h&quot;
+</span><span> #include &quot;nodes/execnodes.h&quot;
+</span><span> #include &quot;nodes/pg_list.h&quot;
+</span><span> #include &quot;pg_config_manual.h&quot;
+</span><span> #include &quot;utils/elog.h&quot;
+</span><span> #include &quot;utils/memutils.h&quot;
+</span><span> #include &quot;utils/palloc.h&quot;
+</span><span> #include &quot;utils/resowner.h&quot;
+</span><span> #include &quot;utils/resowner_private.h&quot;
+</span><span> 
+</span><span> #include &lt;dlfcn.h&gt;
+</span><span> #include &lt;stdbool.h&gt;
+</span><span> #include &lt;stdint.h&gt;
+</span><span> #include &lt;stdio.h&gt;
+</span><span> #include &lt;stdlib.h&gt;
+</span><span> 
+</span><span> PG_MODULE_MAGIC;
+</span><span> 
+</span><span> /*
+</span><span>  * To avoid symbol name collision, we use this variable to count the number of
+</span><span>  * emitted functions and use it as a part of the emitted function&#39;s name.
+</span><span>  */
+</span><span> static int module_generation = 0;
+</span><span> 
+</span><span> extern void _PG_jit_provider_init(JitProviderCallbacks *cb);
+</span><span> 
+</span><span> typedef struct SlowJitContext {
+</span><span>   JitContext base;
+</span><span>   /* Fields to be implemented later. */
+</span><span> } SlowJitContext;
+</span><span> 
+</span><span> /* Function prototypes for JIT compilation. */
+</span><span> static bool slowjit_compile_expr(ExprState *state) {
+</span><span>   PlanState *parent = state-&gt;parent;
+</span><span>   SlowJitContext *jit_ctx = NULL;
+</span><span>   /* The name of the emitted function. */
+</span><span>   char symbol_name[MAXPGPATH];
+</span><span>   /* Buffer to hold emitted C codes. */
+</span><span>   StringInfoData code_holder;
+</span><span> 
+</span><span>   /* parent shouldn&#39;t be NULL. */
+</span><span>   Assert(parent != NULL);
+</span><span> 
+</span><span>   /*
+</span><span>    * Emit a notice message so that we can check if the JIT provider being
+</span><span>    * loaded successfully.
+</span><span>    */
+</span><span>   elog(NOTICE, &quot;slowjit_compile_expr&quot;);
+</span><span> 
+</span><span>   /* Initialize the context. */
+</span><span>   if (parent-&gt;state-&gt;es_jit) {
+</span><span>     /*
+</span><span>      * We can reuse the JIT context.
+</span><span>      */
+</span><span>     jit_ctx = (SlowJitContext *)parent-&gt;state-&gt;es_jit;
+</span><span>   } else {
+</span><span>     ResourceOwnerEnlargeJIT(CurrentResourceOwner);
+</span><span> 
+</span><span>     jit_ctx = (SlowJitContext *)MemoryContextAllocZero(TopMemoryContext,
+</span><span>                                                        sizeof(SlowJitContext));
+</span><span>     jit_ctx-&gt;base.flags = parent-&gt;state-&gt;es_jit_flags;
+</span><span> 
+</span><span>     /* ensure cleanup */
+</span><span>     jit_ctx-&gt;base.resowner = CurrentResourceOwner;
+</span><span>     ResourceOwnerRememberJIT(CurrentResourceOwner, PointerGetDatum(jit_ctx));
+</span><span> 
+</span><span>     /* For re-using the JIT context. */
+</span><span>     parent-&gt;state-&gt;es_jit = &amp;jit_ctx-&gt;base;
+</span><span>   }
+</span><span> 
+</span><span>   initStringInfo(&amp;code_holder);
+</span><span> 
+</span><span> #define emit_line(...)                                                         \
+</span><span>   do {                                                                         \
+</span><span>     appendStringInfo(&amp;code_holder, __VA_ARGS__);                               \
+</span><span>     appendStringInfoChar(&amp;code_holder, &#39;\n&#39;);                                  \
+</span><span>   } while (0)
+</span><span> 
+</span><span> #define emit_include(header) emit_line(&quot;#include \&quot;%s\&quot;&quot;, header)
+</span><span> 
+</span><span>   emit_include(&quot;postgres.h&quot;);
+</span><span>   emit_include(&quot;nodes/execnodes.h&quot;);
+</span><span> 
+</span><span>   /*
+</span><span>    * Emit the jitted function signature.
+</span><span>    * We use MyProcPid and module_generation to avoid symbol name collision.
+</span><span>    */
+</span><span>   snprintf(symbol_name, MAXPGPATH, &quot;slowjit_eval_expr_%d_%d&quot;, MyProcPid,
+</span><span>            module_generation);
+</span><span>   emit_line(&quot;Datum %s(ExprState *state, ExprContext *econtext, bool *isnull)&quot;,
+</span><span>             symbol_name);
+</span><span> 
+</span><span>   /* Open function body. */
+</span><span>   emit_line(&quot;{&quot;);
+</span><span> 
+</span><span>   for (int opno = 0; opno &lt; state-&gt;steps_len; ++opno) {
+</span><span>     ExprEvalStep *op;
+</span><span>     ExprEvalOp opcode;
+</span><span> 
+</span><span>     op = &amp;state-&gt;steps[opno];
+</span><span>     opcode = ExecEvalStepOp(state, op);
+</span><span> 
+</span><span>     switch (opcode) {
+</span><span>     case EEOP_DONE: {
+</span><span>       emit_line(&quot;  { // EEOP_DONE&quot;);
+</span><span>       emit_line(&quot;    *isnull = state-&gt;resnull;&quot;);
+</span><span>       emit_line(&quot;  }&quot;);
+</span><span>       emit_line(&quot;  return state-&gt;resvalue;&quot;);
+</span><span> 
+</span><span>       /* Close function boday. */
+</span><span>       emit_line(&quot;}&quot;);
+</span><span>       break;
+</span><span>     }
+</span><span>     case EEOP_ASSIGN_TMP: {
+</span><span>       int resultnum = op-&gt;d.assign_tmp.resultnum;
+</span><span>       emit_line(&quot;  { // EEOP_ASSIGN_TMP&quot;);
+</span><span>       emit_line(&quot;    TupleTableSlot *resultslot = state-&gt;resultslot;&quot;);
+</span><span>       emit_line(&quot;    resultslot-&gt;tts_values[%d] = state-&gt;resvalue;&quot;, resultnum);
+</span><span>       emit_line(&quot;    resultslot-&gt;tts_isnull[%d] = state-&gt;resnull;&quot;, resultnum);
+</span><span>       emit_line(&quot;  }&quot;);
+</span><span>       break;
+</span><span>     }
+</span><span>     case EEOP_CONST: {
+</span><span>       emit_line(&quot;  { // EEOP_CONST&quot;);
+</span><span>       emit_line(&quot;    bool *resnull = (bool *) %lu;&quot;, (uint64_t)op-&gt;resnull);
+</span><span>       emit_line(&quot;    Datum *resvalue = (Datum *) %lu;&quot;, (uint64_t)op-&gt;resvalue);
+</span><span>       emit_line(&quot;    *resnull = (bool) %d;&quot;, op-&gt;d.constval.isnull);
+</span><span>       emit_line(&quot;    *resvalue = (Datum) %luull;&quot;, op-&gt;d.constval.value);
+</span><span>       emit_line(&quot;  }&quot;);
+</span><span>       break;
+</span><span>     }
+</span><span>     default: {
+</span><span>       emit_line(&quot;// OP(%d) to implement&quot;, opcode);
+</span><span>     }
+</span><span>     }
+</span><span>   }
+</span><span> 
+</span><span style="background-color:#c82829;color:#ffffff;">-  /* Print the emitted function to the psql console. */
+</span><span style="background-color:#c82829;color:#ffffff;">-  elog(NOTICE, &quot;\n%s&quot;, code_holder.data);
+</span><span style="background-color:#718c00;color:#ffffff;">+  {
+</span><span style="background-color:#718c00;color:#ffffff;">+    char c_src_path[MAXPGPATH];
+</span><span style="background-color:#718c00;color:#ffffff;">+    char shared_library_path[MAXPGPATH];
+</span><span style="background-color:#718c00;color:#ffffff;">+    char include_server_path[MAXPGPATH];
+</span><span style="background-color:#718c00;color:#ffffff;">+    char compile_command[MAXPGPATH];
+</span><span style="background-color:#718c00;color:#ffffff;">+    FILE *c_src_file;
+</span><span style="background-color:#718c00;color:#ffffff;">+    void *handle;
+</span><span style="background-color:#718c00;color:#ffffff;">+    void *jitted_func;
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+    /* Write the emitted C codes to a file. */
+</span><span style="background-color:#718c00;color:#ffffff;">+    snprintf(c_src_path, MAXPGPATH, &quot;/tmp/%d.%d.c&quot;, MyProcPid,
+</span><span style="background-color:#718c00;color:#ffffff;">+             module_generation);
+</span><span style="background-color:#718c00;color:#ffffff;">+    c_src_file = fopen(c_src_path, &quot;w+&quot;);
+</span><span style="background-color:#718c00;color:#ffffff;">+    if (c_src_file == NULL) {
+</span><span style="background-color:#718c00;color:#ffffff;">+      ereport(ERROR, (errmsg(&quot;cannot open file &#39;%s&#39; for write&quot;, c_src_path)));
+</span><span style="background-color:#718c00;color:#ffffff;">+    }
+</span><span style="background-color:#718c00;color:#ffffff;">+    fwrite(code_holder.data, 1, code_holder.len, c_src_file);
+</span><span style="background-color:#718c00;color:#ffffff;">+    fclose(c_src_file);
+</span><span style="background-color:#718c00;color:#ffffff;">+    resetStringInfo(&amp;code_holder);
+</span><span style="background-color:#718c00;color:#ffffff;">+    pfree(code_holder.data);
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+    /* Prepare the compile command. */
+</span><span style="background-color:#718c00;color:#ffffff;">+    snprintf(shared_library_path, MAXPGPATH, &quot;/tmp/%d.%d.so&quot;, MyProcPid,
+</span><span style="background-color:#718c00;color:#ffffff;">+             module_generation);
+</span><span style="background-color:#718c00;color:#ffffff;">+    get_includeserver_path(my_exec_path, include_server_path);
+</span><span style="background-color:#718c00;color:#ffffff;">+    snprintf(compile_command, MAXPGPATH, &quot;cc -fPIC -I%s -shared -O3 -o %s %s&quot;,
+</span><span style="background-color:#718c00;color:#ffffff;">+             include_server_path, shared_library_path, c_src_path);
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+    /* Compile the codes */
+</span><span style="background-color:#718c00;color:#ffffff;">+    if (system(compile_command) != 0) {
+</span><span style="background-color:#718c00;color:#ffffff;">+      ereport(ERROR, (errmsg(&quot;cannot execute command: %s&quot;, compile_command)));
+</span><span style="background-color:#718c00;color:#ffffff;">+    }
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+    /* Load the shared library to the current process. */
+</span><span style="background-color:#718c00;color:#ffffff;">+    handle = dlopen(shared_library_path, RTLD_LAZY);
+</span><span style="background-color:#718c00;color:#ffffff;">+    if (handle == NULL) {
+</span><span style="background-color:#718c00;color:#ffffff;">+      char *err = dlerror();
+</span><span style="background-color:#718c00;color:#ffffff;">+      ereport(ERROR,
+</span><span style="background-color:#718c00;color:#ffffff;">+              (errmsg(&quot;cannot dlopen &#39;%s&#39;: %s&quot;, shared_library_path, err)));
+</span><span style="background-color:#718c00;color:#ffffff;">+    }
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+    /* Find the function pointer and save it to state-&gt;evalfunc */
+</span><span style="background-color:#718c00;color:#ffffff;">+    jitted_func = dlsym(handle, symbol_name);
+</span><span style="background-color:#718c00;color:#ffffff;">+    if (jitted_func == NULL) {
+</span><span style="background-color:#718c00;color:#ffffff;">+      char *err = dlerror();
+</span><span style="background-color:#718c00;color:#ffffff;">+      ereport(ERROR, (errmsg(&quot;cannot find symbol &#39;%s&#39; from &#39;%s&#39;: %s&quot;,
+</span><span style="background-color:#718c00;color:#ffffff;">+                             symbol_name, shared_library_path, err)));
+</span><span style="background-color:#718c00;color:#ffffff;">+    }
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+    state-&gt;evalfunc = jitted_func;
+</span><span style="background-color:#718c00;color:#ffffff;">+    state-&gt;evalfunc_private = NULL;
+</span><span style="background-color:#718c00;color:#ffffff;">+    module_generation++;
+</span><span style="background-color:#718c00;color:#ffffff;">+  }
+</span><span> 
+</span><span style="background-color:#c82829;color:#ffffff;">-  /* Returning &#39;false&#39; indicates we won&#39;t jit the current expression. */
+</span><span style="background-color:#c82829;color:#ffffff;">-  return false;
+</span><span style="background-color:#718c00;color:#ffffff;">+  return true;
+</span><span> }
+</span><span> static void slowjit_release_context(JitContext *ctx) {
+</span><span>   elog(NOTICE, &quot;slowjit_release_context&quot;);
+</span><span> }
+</span><span> static void slowjit_reset_after_error(void) {
+</span><span>   elog(NOTICE, &quot;slowjit_reset_after_error&quot;);
+</span><span> }
+</span><span> 
+</span><span> /* Function where we initialize JIT compilation callbacks. */
+</span><span> void _PG_jit_provider_init(JitProviderCallbacks *cb) {
+</span><span>   cb-&gt;compile_expr = slowjit_compile_expr;
+</span><span>   cb-&gt;release_context = slowjit_release_context;
+</span><span>   cb-&gt;reset_after_error = slowjit_reset_after_error;
+</span><span> }
+</span></code></pre>
+</details>
+<p>Now, we can jit the simplest query!! But there're still some problems. After loading the shared library, we lose track of the handle. We need to close the handle of the shared library after the query finishing.</p>
+<details>
+  <summary> pg_slowjit/slowjit.c  (Click me to view the diff)</summary>
+<pre data-lang="diff" style="background-color:#ffffff;color:#4d4d4c;" class="language-diff "><code class="language-diff" data-lang="diff"><span> /* A bunch of header files. */
+</span><span> #include &quot;postgres.h&quot;
+</span><span> 
+</span><span> #include &quot;c.h&quot;
+</span><span> #include &quot;executor/execExpr.h&quot;
+</span><span> #include &quot;fmgr.h&quot;
+</span><span> #include &quot;jit/jit.h&quot;
+</span><span> #include &quot;lib/stringinfo.h&quot;
+</span><span> #include &quot;miscadmin.h&quot;
+</span><span> #include &quot;nodes/execnodes.h&quot;
+</span><span> #include &quot;nodes/pg_list.h&quot;
+</span><span> #include &quot;pg_config_manual.h&quot;
+</span><span> #include &quot;utils/elog.h&quot;
+</span><span> #include &quot;utils/memutils.h&quot;
+</span><span> #include &quot;utils/palloc.h&quot;
+</span><span> #include &quot;utils/resowner.h&quot;
+</span><span> #include &quot;utils/resowner_private.h&quot;
+</span><span> 
+</span><span> #include &lt;dlfcn.h&gt;
+</span><span> #include &lt;stdbool.h&gt;
+</span><span> #include &lt;stdint.h&gt;
+</span><span> #include &lt;stdio.h&gt;
+</span><span> #include &lt;stdlib.h&gt;
+</span><span> 
+</span><span> PG_MODULE_MAGIC;
+</span><span> 
+</span><span> /*
+</span><span>  * To avoid symbol name collision, we use this variable to count the number of
+</span><span>  * emitted functions and use it as a part of the emitted function&#39;s name.
+</span><span>  */
+</span><span> static int module_generation = 0;
+</span><span> 
+</span><span> extern void _PG_jit_provider_init(JitProviderCallbacks *cb);
+</span><span> 
+</span><span> typedef struct SlowJitContext {
+</span><span>   JitContext base;
+</span><span style="background-color:#c82829;color:#ffffff;">-  /* Fields to be implemented later. */
+</span><span style="background-color:#718c00;color:#ffffff;">+  List *handles;
+</span><span> } SlowJitContext;
+</span><span> 
+</span><span> /* Function prototypes for JIT compilation. */
+</span><span> static bool slowjit_compile_expr(ExprState *state) {
+</span><span>   PlanState *parent = state-&gt;parent;
+</span><span>   SlowJitContext *jit_ctx = NULL;
+</span><span>   /* The name of the emitted function. */
+</span><span>   char symbol_name[MAXPGPATH];
+</span><span>   /* Buffer to hold emitted C codes. */
+</span><span>   StringInfoData code_holder;
+</span><span> 
+</span><span>   /* parent shouldn&#39;t be NULL. */
+</span><span>   Assert(parent != NULL);
+</span><span> 
+</span><span>   /*
+</span><span>    * Emit a notice message so that we can check if the JIT provider being
+</span><span>    * loaded successfully.
+</span><span>    */
+</span><span>   elog(NOTICE, &quot;slowjit_compile_expr&quot;);
+</span><span> 
+</span><span>   /* Initialize the context. */
+</span><span>   if (parent-&gt;state-&gt;es_jit) {
+</span><span>     /*
+</span><span>      * We can reuse the JIT context.
+</span><span>      */
+</span><span>     jit_ctx = (SlowJitContext *)parent-&gt;state-&gt;es_jit;
+</span><span>   } else {
+</span><span>     ResourceOwnerEnlargeJIT(CurrentResourceOwner);
+</span><span> 
+</span><span>     jit_ctx = (SlowJitContext *)MemoryContextAllocZero(TopMemoryContext,
+</span><span>                                                        sizeof(SlowJitContext));
+</span><span>     jit_ctx-&gt;base.flags = parent-&gt;state-&gt;es_jit_flags;
+</span><span> 
+</span><span>     /* ensure cleanup */
+</span><span>     jit_ctx-&gt;base.resowner = CurrentResourceOwner;
+</span><span>     ResourceOwnerRememberJIT(CurrentResourceOwner, PointerGetDatum(jit_ctx));
+</span><span> 
+</span><span>     /* For re-using the JIT context. */
+</span><span>     parent-&gt;state-&gt;es_jit = &amp;jit_ctx-&gt;base;
+</span><span>   }
+</span><span> 
+</span><span>   initStringInfo(&amp;code_holder);
+</span><span> 
+</span><span> #define emit_line(...)                                                         \
+</span><span>   do {                                                                         \
+</span><span>     appendStringInfo(&amp;code_holder, __VA_ARGS__);                               \
+</span><span>     appendStringInfoChar(&amp;code_holder, &#39;\n&#39;);                                  \
+</span><span>   } while (0)
+</span><span> 
+</span><span> #define emit_include(header) emit_line(&quot;#include \&quot;%s\&quot;&quot;, header)
+</span><span> 
+</span><span>   emit_include(&quot;postgres.h&quot;);
+</span><span>   emit_include(&quot;nodes/execnodes.h&quot;);
+</span><span> 
+</span><span>   /*
+</span><span>    * Emit the jitted function signature.
+</span><span>    * We use MyProcPid and module_generation to avoid symbol name collision.
+</span><span>    */
+</span><span>   snprintf(symbol_name, MAXPGPATH, &quot;slowjit_eval_expr_%d_%d&quot;, MyProcPid,
+</span><span>            module_generation);
+</span><span>   emit_line(&quot;Datum %s(ExprState *state, ExprContext *econtext, bool *isnull)&quot;,
+</span><span>             symbol_name);
+</span><span> 
+</span><span>   /* Open function body. */
+</span><span>   emit_line(&quot;{&quot;);
+</span><span> 
+</span><span>   for (int opno = 0; opno &lt; state-&gt;steps_len; ++opno) {
+</span><span>     ExprEvalStep *op;
+</span><span>     ExprEvalOp opcode;
+</span><span> 
+</span><span>     op = &amp;state-&gt;steps[opno];
+</span><span>     opcode = ExecEvalStepOp(state, op);
+</span><span> 
+</span><span>     switch (opcode) {
+</span><span>     case EEOP_DONE: {
+</span><span>       emit_line(&quot;  { // EEOP_DONE&quot;);
+</span><span>       emit_line(&quot;    *isnull = state-&gt;resnull;&quot;);
+</span><span>       emit_line(&quot;  }&quot;);
+</span><span>       emit_line(&quot;  return state-&gt;resvalue;&quot;);
+</span><span> 
+</span><span>       /* Close function boday. */
+</span><span>       emit_line(&quot;}&quot;);
+</span><span>       break;
+</span><span>     }
+</span><span>     case EEOP_ASSIGN_TMP: {
+</span><span>       int resultnum = op-&gt;d.assign_tmp.resultnum;
+</span><span>       emit_line(&quot;  { // EEOP_ASSIGN_TMP&quot;);
+</span><span>       emit_line(&quot;    TupleTableSlot *resultslot = state-&gt;resultslot;&quot;);
+</span><span>       emit_line(&quot;    resultslot-&gt;tts_values[%d] = state-&gt;resvalue;&quot;, resultnum);
+</span><span>       emit_line(&quot;    resultslot-&gt;tts_isnull[%d] = state-&gt;resnull;&quot;, resultnum);
+</span><span>       emit_line(&quot;  }&quot;);
+</span><span>       break;
+</span><span>     }
+</span><span>     case EEOP_CONST: {
+</span><span>       emit_line(&quot;  { // EEOP_CONST&quot;);
+</span><span>       emit_line(&quot;    bool *resnull = (bool *) %lu;&quot;, (uint64_t)op-&gt;resnull);
+</span><span>       emit_line(&quot;    Datum *resvalue = (Datum *) %lu;&quot;, (uint64_t)op-&gt;resvalue);
+</span><span>       emit_line(&quot;    *resnull = (bool) %d;&quot;, op-&gt;d.constval.isnull);
+</span><span>       emit_line(&quot;    *resvalue = (Datum) %luull;&quot;, op-&gt;d.constval.value);
+</span><span>       emit_line(&quot;  }&quot;);
+</span><span>       break;
+</span><span>     }
+</span><span>     default: {
+</span><span>       emit_line(&quot;// OP(%d) to implement&quot;, opcode);
+</span><span>     }
+</span><span>     }
+</span><span>   }
+</span><span> 
+</span><span>   {
+</span><span>     char c_src_path[MAXPGPATH];
+</span><span>     char shared_library_path[MAXPGPATH];
+</span><span>     char include_server_path[MAXPGPATH];
+</span><span>     char compile_command[MAXPGPATH];
+</span><span>     FILE *c_src_file;
+</span><span>     void *handle;
+</span><span>     void *jitted_func;
+</span><span style="background-color:#718c00;color:#ffffff;">+    MemoryContext oldctx;
+</span><span> 
+</span><span>     /* Write the emitted C codes to a file. */
+</span><span>     snprintf(c_src_path, MAXPGPATH, &quot;/tmp/%d.%d.c&quot;, MyProcPid,
+</span><span>              module_generation);
+</span><span>     c_src_file = fopen(c_src_path, &quot;w+&quot;);
+</span><span>     if (c_src_file == NULL) {
+</span><span>       ereport(ERROR, (errmsg(&quot;cannot open file &#39;%s&#39; for write&quot;, c_src_path)));
+</span><span>     }
+</span><span>     fwrite(code_holder.data, 1, code_holder.len, c_src_file);
+</span><span>     fclose(c_src_file);
+</span><span>     resetStringInfo(&amp;code_holder);
+</span><span>     pfree(code_holder.data);
+</span><span> 
+</span><span>     /* Prepare the compile command. */
+</span><span>     snprintf(shared_library_path, MAXPGPATH, &quot;/tmp/%d.%d.so&quot;, MyProcPid,
+</span><span>              module_generation);
+</span><span>     get_includeserver_path(my_exec_path, include_server_path);
+</span><span>     snprintf(compile_command, MAXPGPATH, &quot;cc -fPIC -I%s -shared -O3 -o %s %s&quot;,
+</span><span>              include_server_path, shared_library_path, c_src_path);
+</span><span> 
+</span><span>     /* Compile the codes */
+</span><span>     if (system(compile_command) != 0) {
+</span><span>       ereport(ERROR, (errmsg(&quot;cannot execute command: %s&quot;, compile_command)));
+</span><span>     }
+</span><span> 
+</span><span>     /* Load the shared library to the current process. */
+</span><span>     handle = dlopen(shared_library_path, RTLD_LAZY);
+</span><span>     if (handle == NULL) {
+</span><span>       char *err = dlerror();
+</span><span>       ereport(ERROR,
+</span><span>               (errmsg(&quot;cannot dlopen &#39;%s&#39;: %s&quot;, shared_library_path, err)));
+</span><span>     }
+</span><span> 
+</span><span style="background-color:#718c00;color:#ffffff;">+    /*
+</span><span style="background-color:#718c00;color:#ffffff;">+     * Keep track of the handle of the shared library, so that we can release it
+</span><span style="background-color:#718c00;color:#ffffff;">+     * later.
+</span><span style="background-color:#718c00;color:#ffffff;">+     */
+</span><span style="background-color:#718c00;color:#ffffff;">+    oldctx = MemoryContextSwitchTo(TopMemoryContext);
+</span><span style="background-color:#718c00;color:#ffffff;">+    jit_ctx-&gt;handles = lappend(jit_ctx-&gt;handles, handle);
+</span><span style="background-color:#718c00;color:#ffffff;">+    MemoryContextSwitchTo(oldctx);
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span>     /* Find the function pointer and save it to state-&gt;evalfunc */
+</span><span>     jitted_func = dlsym(handle, symbol_name);
+</span><span>     if (jitted_func == NULL) {
+</span><span>       char *err = dlerror();
+</span><span>       ereport(ERROR, (errmsg(&quot;cannot find symbol &#39;%s&#39; from &#39;%s&#39;: %s&quot;,
+</span><span>                              symbol_name, shared_library_path, err)));
+</span><span>     }
+</span><span> 
+</span><span>     state-&gt;evalfunc = jitted_func;
+</span><span>     state-&gt;evalfunc_private = NULL;
+</span><span>     module_generation++;
+</span><span>   }
+</span><span> 
+</span><span>   return true;
+</span><span> }
+</span><span> static void slowjit_release_context(JitContext *ctx) {
+</span><span style="background-color:#c82829;color:#ffffff;">-  elog(NOTICE, &quot;slowjit_release_context&quot;);
+</span><span style="background-color:#718c00;color:#ffffff;">+  SlowJitContext *jit_ctx = (SlowJitContext *)ctx;
+</span><span style="background-color:#718c00;color:#ffffff;">+  ListCell *lc;
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span style="background-color:#718c00;color:#ffffff;">+  foreach (lc, jit_ctx-&gt;handles) {
+</span><span style="background-color:#718c00;color:#ffffff;">+    void *handle = (void *)lfirst(lc);
+</span><span style="background-color:#718c00;color:#ffffff;">+    dlclose(handle);
+</span><span style="background-color:#718c00;color:#ffffff;">+  }
+</span><span style="background-color:#718c00;color:#ffffff;">+  list_free(jit_ctx-&gt;handles);
+</span><span style="background-color:#718c00;color:#ffffff;">+  jit_ctx-&gt;handles = NIL;
+</span><span> }
+</span><span> static void slowjit_reset_after_error(void) {
+</span><span>   elog(NOTICE, &quot;slowjit_reset_after_error&quot;);
+</span><span> }
+</span><span> 
+</span><span> /* Function where we initialize JIT compilation callbacks. */
+</span><span> void _PG_jit_provider_init(JitProviderCallbacks *cb) {
+</span><span>   cb-&gt;compile_expr = slowjit_compile_expr;
+</span><span>   cb-&gt;release_context = slowjit_release_context;
+</span><span>   cb-&gt;reset_after_error = slowjit_reset_after_error;
+</span><span> }
+</span></code></pre>
+</details>
+<h3 id="instrumentation-statistics">Instrumentation statistics</h3>
+<p>Something is still missing from our JIT provider. That is instrumentation statistics. The LLVM JIT provider is able to report some statistics about the JIT compilation, e.g., the number of jitted functions, code generation time, etc.</p>
+<pre data-lang="sql" style="background-color:#ffffff;color:#4d4d4c;" class="language-sql "><code class="language-sql" data-lang="sql"><span>postgres</span><span style="color:#3e999f;">=</span><span style="color:#999999;"># EXPLAIN (ANALYZE) SELECT 1;
+</span><span>                                                          QUERY PLAN
+</span><span style="color:#999999;">-------------------------------------------------------------------------------------------------------------------------------
+</span><span> Result  (cost</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">00</span><span>..</span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">01</span><span> rows</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">1</span><span> width</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">4</span><span>) (actual </span><span style="color:#8959a8;">time</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">11</span><span>.</span><span style="color:#f5871f;">966</span><span>..</span><span style="color:#f5871f;">11</span><span>.</span><span style="color:#f5871f;">967</span><span> rows</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">1</span><span> loops</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">1</span><span>)
+</span><span> Planning </span><span style="color:#8959a8;">Time</span><span>: </span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">031</span><span> ms
+</span><span> JIT:
+</span><span>   Functions: </span><span style="color:#f5871f;">1
+</span><span>   Options: Inlining false, Optimization false, Expressions true, Deforming true
+</span><span>   Timing: Generation </span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">075</span><span> ms (Deform </span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">000</span><span> ms), Inlining </span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">000</span><span> ms, Optimization </span><span style="color:#f5871f;">7</span><span>.</span><span style="color:#f5871f;">857</span><span> ms, Emission </span><span style="color:#f5871f;">4</span><span>.</span><span style="color:#f5871f;">099</span><span> ms, Total </span><span style="color:#f5871f;">12</span><span>.</span><span style="color:#f5871f;">031</span><span> ms
+</span><span> Execution </span><span style="color:#8959a8;">Time</span><span>: </span><span style="color:#f5871f;">12</span><span>.</span><span style="color:#f5871f;">113</span><span> ms
+</span><span>(</span><span style="color:#f5871f;">7</span><span> rows)
+</span></code></pre>
+<p>There're various kinds of information about JIT compilation being recorded in the <code>JitContext::instr</code> field.</p>
+<pre data-lang="c" style="background-color:#ffffff;color:#4d4d4c;" class="language-c "><code class="language-c" data-lang="c"><span style="color:#8959a8;">typedef struct</span><span> JitInstrumentation
+</span><span>{
+</span><span>  </span><span style="color:#999999;">/* number of emitted functions */
+</span><span>  </span><span style="color:#c99e00;">size_t</span><span> created_functions;
+</span><span>  </span><span style="color:#999999;">/* accumulated time to generate code */
+</span><span>  instr_time generation_counter;
+</span><span>  </span><span style="color:#999999;">/* accumulated time to deform tuples, included into generation_counter */
+</span><span>  instr_time deform_counter;
+</span><span>  </span><span style="color:#999999;">/* accumulated time for inlining */
+</span><span>  instr_time inlining_counter;
+</span><span>  </span><span style="color:#999999;">/* accumulated time for optimization */
+</span><span>  instr_time optimization_counter;
+</span><span>  </span><span style="color:#999999;">/* accumulated time for code emission */
+</span><span>  instr_time emission_counter;
+</span><span>} JitInstrumentation;
+</span></code></pre>
+<p>Let's implement some of them to complete our prototype. The following diff adds support for counting created functions and the total generation time.</p>
+<details>
+  <summary> pg_slowjit/slowjit.c  (Click me to view the diff)</summary>
+<pre data-lang="diff" style="background-color:#ffffff;color:#4d4d4c;" class="language-diff "><code class="language-diff" data-lang="diff"><span> /* A bunch of header files. */
+</span><span> #include &quot;postgres.h&quot;
+</span><span> 
+</span><span> #include &quot;c.h&quot;
+</span><span> #include &quot;executor/execExpr.h&quot;
+</span><span> #include &quot;fmgr.h&quot;
+</span><span> #include &quot;jit/jit.h&quot;
+</span><span> #include &quot;lib/stringinfo.h&quot;
+</span><span> #include &quot;miscadmin.h&quot;
+</span><span> #include &quot;nodes/execnodes.h&quot;
+</span><span> #include &quot;nodes/pg_list.h&quot;
+</span><span> #include &quot;pg_config_manual.h&quot;
+</span><span style="background-color:#718c00;color:#ffffff;">+#include &quot;portability/instr_time.h&quot;
+</span><span> #include &quot;utils/elog.h&quot;
+</span><span> #include &quot;utils/memutils.h&quot;
+</span><span> #include &quot;utils/palloc.h&quot;
+</span><span> #include &quot;utils/resowner.h&quot;
+</span><span> #include &quot;utils/resowner_private.h&quot;
+</span><span> 
+</span><span> #include &lt;dlfcn.h&gt;
+</span><span> #include &lt;stdbool.h&gt;
+</span><span> #include &lt;stdint.h&gt;
+</span><span> #include &lt;stdio.h&gt;
+</span><span> #include &lt;stdlib.h&gt;
+</span><span> 
+</span><span> PG_MODULE_MAGIC;
+</span><span> 
+</span><span> /*
+</span><span>  * To avoid symbol name collision, we use this variable to count the number of
+</span><span>  * emitted functions and use it as a part of the emitted function&#39;s name.
+</span><span>  */
+</span><span> static int module_generation = 0;
+</span><span> 
+</span><span> extern void _PG_jit_provider_init(JitProviderCallbacks *cb);
+</span><span> 
+</span><span> typedef struct SlowJitContext {
+</span><span>   JitContext base;
+</span><span>   List *handles;
+</span><span> } SlowJitContext;
+</span><span> 
+</span><span> /* Function prototypes for JIT compilation. */
+</span><span> static bool slowjit_compile_expr(ExprState *state) {
+</span><span>   PlanState *parent = state-&gt;parent;
+</span><span>   SlowJitContext *jit_ctx = NULL;
+</span><span>   /* The name of the emitted function. */
+</span><span>   char symbol_name[MAXPGPATH];
+</span><span>   /* Buffer to hold emitted C codes. */
+</span><span>   StringInfoData code_holder;
+</span><span style="background-color:#718c00;color:#ffffff;">+  /* Some instrumentation statistics. */
+</span><span style="background-color:#718c00;color:#ffffff;">+  instr_time starttime;
+</span><span style="background-color:#718c00;color:#ffffff;">+  instr_time endtime;
+</span><span> 
+</span><span>   /* parent shouldn&#39;t be NULL. */
+</span><span>   Assert(parent != NULL);
+</span><span> 
+</span><span>   /*
+</span><span>    * Emit a notice message so that we can check if the JIT provider being
+</span><span>    * loaded successfully.
+</span><span>    */
+</span><span>   elog(NOTICE, &quot;slowjit_compile_expr&quot;);
+</span><span> 
+</span><span>   /* Initialize the context. */
+</span><span>   if (parent-&gt;state-&gt;es_jit) {
+</span><span>     /*
+</span><span>      * We can reuse the JIT context.
+</span><span>      */
+</span><span>     jit_ctx = (SlowJitContext *)parent-&gt;state-&gt;es_jit;
+</span><span>   } else {
+</span><span>     ResourceOwnerEnlargeJIT(CurrentResourceOwner);
+</span><span> 
+</span><span>     jit_ctx = (SlowJitContext *)MemoryContextAllocZero(TopMemoryContext,
+</span><span>                                                        sizeof(SlowJitContext));
+</span><span>     jit_ctx-&gt;base.flags = parent-&gt;state-&gt;es_jit_flags;
+</span><span> 
+</span><span>     /* ensure cleanup */
+</span><span>     jit_ctx-&gt;base.resowner = CurrentResourceOwner;
+</span><span>     ResourceOwnerRememberJIT(CurrentResourceOwner, PointerGetDatum(jit_ctx));
+</span><span> 
+</span><span>     /* For re-using the JIT context. */
+</span><span>     parent-&gt;state-&gt;es_jit = &amp;jit_ctx-&gt;base;
+</span><span>   }
+</span><span> 
+</span><span style="background-color:#718c00;color:#ffffff;">+  INSTR_TIME_SET_CURRENT(starttime);
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span>   initStringInfo(&amp;code_holder);
+</span><span> 
+</span><span> #define emit_line(...)                                                         \
+</span><span>   do {                                                                         \
+</span><span>     appendStringInfo(&amp;code_holder, __VA_ARGS__);                               \
+</span><span>     appendStringInfoChar(&amp;code_holder, &#39;\n&#39;);                                  \
+</span><span>   } while (0)
+</span><span> 
+</span><span> #define emit_include(header) emit_line(&quot;#include \&quot;%s\&quot;&quot;, header)
+</span><span> 
+</span><span>   emit_include(&quot;postgres.h&quot;);
+</span><span>   emit_include(&quot;nodes/execnodes.h&quot;);
+</span><span> 
+</span><span>   /*
+</span><span>    * Emit the jitted function signature.
+</span><span>    * We use MyProcPid and module_generation to avoid symbol name collision.
+</span><span>    */
+</span><span>   snprintf(symbol_name, MAXPGPATH, &quot;slowjit_eval_expr_%d_%d&quot;, MyProcPid,
+</span><span>            module_generation);
+</span><span>   emit_line(&quot;Datum %s(ExprState *state, ExprContext *econtext, bool *isnull)&quot;,
+</span><span>             symbol_name);
+</span><span> 
+</span><span>   /* Open function body. */
+</span><span>   emit_line(&quot;{&quot;);
+</span><span> 
+</span><span>   for (int opno = 0; opno &lt; state-&gt;steps_len; ++opno) {
+</span><span>     ExprEvalStep *op;
+</span><span>     ExprEvalOp opcode;
+</span><span> 
+</span><span>     op = &amp;state-&gt;steps[opno];
+</span><span>     opcode = ExecEvalStepOp(state, op);
+</span><span> 
+</span><span>     switch (opcode) {
+</span><span>     case EEOP_DONE: {
+</span><span>       emit_line(&quot;  { // EEOP_DONE&quot;);
+</span><span>       emit_line(&quot;    *isnull = state-&gt;resnull;&quot;);
+</span><span>       emit_line(&quot;  }&quot;);
+</span><span>       emit_line(&quot;  return state-&gt;resvalue;&quot;);
+</span><span> 
+</span><span>       /* Close function boday. */
+</span><span>       emit_line(&quot;}&quot;);
+</span><span>       break;
+</span><span>     }
+</span><span>     case EEOP_ASSIGN_TMP: {
+</span><span>       int resultnum = op-&gt;d.assign_tmp.resultnum;
+</span><span>       emit_line(&quot;  { // EEOP_ASSIGN_TMP&quot;);
+</span><span>       emit_line(&quot;    TupleTableSlot *resultslot = state-&gt;resultslot;&quot;);
+</span><span>       emit_line(&quot;    resultslot-&gt;tts_values[%d] = state-&gt;resvalue;&quot;, resultnum);
+</span><span>       emit_line(&quot;    resultslot-&gt;tts_isnull[%d] = state-&gt;resnull;&quot;, resultnum);
+</span><span>       emit_line(&quot;  }&quot;);
+</span><span>       break;
+</span><span>     }
+</span><span>     case EEOP_CONST: {
+</span><span>       emit_line(&quot;  { // EEOP_CONST&quot;);
+</span><span>       emit_line(&quot;    bool *resnull = (bool *) %lu;&quot;, (uint64_t)op-&gt;resnull);
+</span><span>       emit_line(&quot;    Datum *resvalue = (Datum *) %lu;&quot;, (uint64_t)op-&gt;resvalue);
+</span><span>       emit_line(&quot;    *resnull = (bool) %d;&quot;, op-&gt;d.constval.isnull);
+</span><span>       emit_line(&quot;    *resvalue = (Datum) %luull;&quot;, op-&gt;d.constval.value);
+</span><span>       emit_line(&quot;  }&quot;);
+</span><span>       break;
+</span><span>     }
+</span><span>     default: {
+</span><span>       emit_line(&quot;// OP(%d) to implement&quot;, opcode);
+</span><span>     }
+</span><span>     }
+</span><span>   }
+</span><span> 
+</span><span>   {
+</span><span>     char c_src_path[MAXPGPATH];
+</span><span>     char shared_library_path[MAXPGPATH];
+</span><span>     char include_server_path[MAXPGPATH];
+</span><span>     char compile_command[MAXPGPATH];
+</span><span>     FILE *c_src_file;
+</span><span>     void *handle;
+</span><span>     void *jitted_func;
+</span><span>     MemoryContext oldctx;
+</span><span> 
+</span><span>     /* Write the emitted C codes to a file. */
+</span><span>     snprintf(c_src_path, MAXPGPATH, &quot;/tmp/%d.%d.c&quot;, MyProcPid,
+</span><span>              module_generation);
+</span><span>     c_src_file = fopen(c_src_path, &quot;w+&quot;);
+</span><span>     if (c_src_file == NULL) {
+</span><span>       ereport(ERROR, (errmsg(&quot;cannot open file &#39;%s&#39; for write&quot;, c_src_path)));
+</span><span>     }
+</span><span>     fwrite(code_holder.data, 1, code_holder.len, c_src_file);
+</span><span>     fclose(c_src_file);
+</span><span>     resetStringInfo(&amp;code_holder);
+</span><span>     pfree(code_holder.data);
+</span><span> 
+</span><span>     /* Prepare the compile command. */
+</span><span>     snprintf(shared_library_path, MAXPGPATH, &quot;/tmp/%d.%d.so&quot;, MyProcPid,
+</span><span>              module_generation);
+</span><span>     get_includeserver_path(my_exec_path, include_server_path);
+</span><span>     snprintf(compile_command, MAXPGPATH, &quot;cc -fPIC -I%s -shared -O3 -o %s %s&quot;,
+</span><span>              include_server_path, shared_library_path, c_src_path);
+</span><span> 
+</span><span>     /* Compile the codes */
+</span><span>     if (system(compile_command) != 0) {
+</span><span>       ereport(ERROR, (errmsg(&quot;cannot execute command: %s&quot;, compile_command)));
+</span><span>     }
+</span><span> 
+</span><span>     /* Load the shared library to the current process. */
+</span><span>     handle = dlopen(shared_library_path, RTLD_LAZY);
+</span><span>     if (handle == NULL) {
+</span><span>       char *err = dlerror();
+</span><span>       ereport(ERROR,
+</span><span>               (errmsg(&quot;cannot dlopen &#39;%s&#39;: %s&quot;, shared_library_path, err)));
+</span><span>     }
+</span><span> 
+</span><span>     /*
+</span><span>      * Keep track of the handle of the shared library, so that we can release it
+</span><span>      * later.
+</span><span>      */
+</span><span>     oldctx = MemoryContextSwitchTo(TopMemoryContext);
+</span><span>     jit_ctx-&gt;handles = lappend(jit_ctx-&gt;handles, handle);
+</span><span>     MemoryContextSwitchTo(oldctx);
+</span><span> 
+</span><span>     /* Find the function pointer and save it to state-&gt;evalfunc */
+</span><span>     jitted_func = dlsym(handle, symbol_name);
+</span><span>     if (jitted_func == NULL) {
+</span><span>       char *err = dlerror();
+</span><span>       ereport(ERROR, (errmsg(&quot;cannot find symbol &#39;%s&#39; from &#39;%s&#39;: %s&quot;,
+</span><span>                              symbol_name, shared_library_path, err)));
+</span><span>     }
+</span><span> 
+</span><span>     state-&gt;evalfunc = jitted_func;
+</span><span>     state-&gt;evalfunc_private = NULL;
+</span><span>     module_generation++;
+</span><span style="background-color:#718c00;color:#ffffff;">+    jit_ctx-&gt;base.instr.created_functions++;
+</span><span>   }
+</span><span> 
+</span><span style="background-color:#718c00;color:#ffffff;">+  INSTR_TIME_SET_CURRENT(endtime);
+</span><span style="background-color:#718c00;color:#ffffff;">+  INSTR_TIME_ACCUM_DIFF(jit_ctx-&gt;base.instr.generation_counter, endtime,
+</span><span style="background-color:#718c00;color:#ffffff;">+                        starttime);
+</span><span style="background-color:#718c00;color:#ffffff;">+
+</span><span>   return true;
+</span><span> }
+</span><span> static void slowjit_release_context(JitContext *ctx) {
+</span><span>   SlowJitContext *jit_ctx = (SlowJitContext *)ctx;
+</span><span>   ListCell *lc;
+</span><span> 
+</span><span>   foreach (lc, jit_ctx-&gt;handles) {
+</span><span>     void *handle = (void *)lfirst(lc);
+</span><span>     dlclose(handle);
+</span><span>   }
+</span><span>   list_free(jit_ctx-&gt;handles);
+</span><span>   jit_ctx-&gt;handles = NIL;
+</span><span> }
+</span><span> static void slowjit_reset_after_error(void) {
+</span><span>   elog(NOTICE, &quot;slowjit_reset_after_error&quot;);
+</span><span> }
+</span><span> 
+</span><span> /* Function where we initialize JIT compilation callbacks. */
+</span><span> void _PG_jit_provider_init(JitProviderCallbacks *cb) {
+</span><span>   cb-&gt;compile_expr = slowjit_compile_expr;
+</span><span>   cb-&gt;release_context = slowjit_release_context;
+</span><span>   cb-&gt;reset_after_error = slowjit_reset_after_error;
+</span><span> }
+</span></code></pre>
+</details>
+<p>Our prototype is able to report some statistics!</p>
+<pre data-lang="sql" style="background-color:#ffffff;color:#4d4d4c;" class="language-sql "><code class="language-sql" data-lang="sql"><span>postgres</span><span style="color:#3e999f;">=</span><span style="color:#999999;"># EXPLAIN (ANALYZE) SELECT 1;
+</span><span>NOTICE:  slowjit_compile_expr
+</span><span>                                                           QUERY PLAN
+</span><span style="color:#999999;">--------------------------------------------------------------------------------------------------------------------------------
+</span><span> Result  (cost</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">00</span><span>..</span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">01</span><span> rows</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">1</span><span> width</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">4</span><span>) (actual </span><span style="color:#8959a8;">time</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">002</span><span>..</span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">002</span><span> rows</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">1</span><span> loops</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">1</span><span>)
+</span><span> Planning </span><span style="color:#8959a8;">Time</span><span>: </span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">125</span><span> ms
+</span><span> JIT:
+</span><span>   Functions: </span><span style="color:#f5871f;">1
+</span><span>   Options: Inlining false, Optimization false, Expressions true, Deforming true
+</span><span>   Timing: Generation </span><span style="color:#f5871f;">71</span><span>.</span><span style="color:#f5871f;">044</span><span> ms (Deform </span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">000</span><span> ms), Inlining </span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">000</span><span> ms, Optimization </span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">000</span><span> ms, Emission </span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">000</span><span> ms, Total </span><span style="color:#f5871f;">71</span><span>.</span><span style="color:#f5871f;">044</span><span> ms
+</span><span> Execution </span><span style="color:#8959a8;">Time</span><span>: </span><span style="color:#f5871f;">71</span><span>.</span><span style="color:#f5871f;">358</span><span> ms
+</span><span>(</span><span style="color:#f5871f;">7</span><span> rows)
+</span></code></pre>
+<h2 id="conclusion">Conclusion</h2>
+<p>In this blog post, we implemented a simple and low efficient JIT provider prototype. There're several aspects that can be improved.</p>
+<ol>
+<li>
+<p>Each shared library only contains one function. Sometimes we need to compile several shared libraries to jit a single query. The LLVM JIT provider of PostgreSQL can emit several functions in one go. It can save some time in compiling the shared library and loading the function.</p>
+</li>
+<li>
+<p>In order to make this article easy to understand, some of the codes are incorrect. E.g., The <code>default</code> branch of the switch-clause for code generation should return false to stop jitting unsupported queries, otherwise incorrect result will be produced and server may crash.</p>
+</li>
+<li>
+<p>Test cases for the JIT provider are missing. I usually test it by running the PostgreSQL regression test suite with the JIT provider being loaded.</p>
+</li>
+</ol>
+<p>The full codes for this post can be found in the <code>blog</code> branch of <a href="https://github.com/higuoxing/pg_slowjit/tree/blog">higuoxing/pg_slowjit</a> and an improved version is in the <a href="https://github.com/higuoxing/pg_slowjit/tree/main"><code>main</code></a> branch.</p>
+<div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
+<p><a href="https://www.postgresql.org/docs/16/jit-extensibility.html">Pluggable JIT Providers.</a></p>
+</div>
+<div class="footnote-definition" id="2"><sup class="footnote-definition-label">2</sup>
+<p><a href="https://github.com/higuoxing/pg_slowjit">pg_slowjit - A simple demo to illustrate how to implement a JIT provider for PostgreSQL.</a></p>
+</div>
+<div class="footnote-definition" id="3"><sup class="footnote-definition-label">3</sup>
+<p><a href="https://github.com/higuoxing/pg_asmjit">pg_asmjit - An alternative x86_64 JIT provider (based on asmjit) for PostgreSQL.</a></p>
+</div>
+<div class="footnote-definition" id="4"><sup class="footnote-definition-label">4</sup>
+<p><a href="https://asmjit.com/">AsmJit -- A low-latency machine code generation library written in C++.</a></p>
+</div>
+<div class="footnote-definition" id="5"><sup class="footnote-definition-label">5</sup>
+<p><a href="https://www.postgresql.org/docs/current/extend-pgxs.html">Extension Building Infrastructure</a></p>
+</div>
+<div class="footnote-definition" id="6"><sup class="footnote-definition-label">6</sup>
+<p><a href="https://www.youtube.com/watch?v=eurwtUhY5fk">Query Compilation &amp; JIT Code Generation (CMU Advanced Databases / Spring 2023) </a></p>
+</div>
+
+  </div>
+</div>
+
+    </div>
+  </div>
+</body>
+
+</html>
