@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block nav_tags %}
+<a href="{{ get_url(path='/tags') }}" class="nav-current"> Tags </a>
+{% endblock nav_tags %}
+
+{% block content %}
+
+<div class="tag-container">
+  <div class="tag-title">Tags</div>
+  <div class="tag-count">{{ terms | length }} tags</div>
+</div>
+
+<div class="tag-cloud">
+  {% for term in terms %}
+  <div class="tag-cloud-item">
+    <a href="{{ term.permalink }}">{{ term.name }}</a>
+    <span class="tag-cloud-item-count">{{ term.page_count }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock content %}

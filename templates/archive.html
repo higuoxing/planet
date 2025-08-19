@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="archive-container">
+
+  <div class="archive-title">
+    {{ section.title }}
+  </div>
+
+  <div class="archive-count">{{ section.pages | length }} articles</div>
+
+  <div class="archive-list">
+    {% for page in section.pages %}
+    <div class="archive-list-header">{{ page.date }}</div>
+    <div class="archive-list-item">
+      <a href="{{ page.permalink | safe }}">{{ page.title }}</a>
+    </div>
+    {% endfor %}
+  </div>
+
+</div> <!-- ends for archive-container -->
+{% endblock content %}

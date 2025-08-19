@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block top %}
+{% endblock top %}
+
+{% block content %}
+<div class="breadcrumb">
+  <div class="breadcrumb-inner">
+    <div class="breadcrumb-avatar">
+      <a href="{{ get_url(path='') }}">
+	<img src="{{ get_url(path='avatar.jpeg') }}" height="16" class="breadcrumb-avatar-image" border="0">
+      </a>
+    </div>
+
+    <a href="{{ get_url(path='') }}">{{ config.title }}</a>
+    <span class="chevron">›</span>
+  </div>
+</div>
+
+<div style="padding-top: 10px">
+  <h1 class="title">
+    {{ page.title }}
+  </h1>
+
+  <div class="date">
+    Published: {{ page.date }}
+  </div>
+
+  <div class="tags-container">
+    {% if page.taxonomies is containing ("tags") %}
+    <span>Tags:</span>
+    {% set post_tags = page.taxonomies["tags"] | sort | unique(case_sensitive=false) %}
+    {% for tag in post_tags  %}
+    <a href="{{ get_url(path='tags') }}/{{ tag | slugify }}/" class="tag-item">{{ tag }}</a>
+    {% endfor %}
+    {% endif %}
+  </div>
+
+  <div class="content">
+    {{ page.content | safe }}
+  </div>
+</div>
+{% endblock content %}

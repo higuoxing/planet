@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="items">
+  {% for page in section.pages %}
+  <div class="item">
+    <div class="item-main">
+      <div class="item-title">
+	<a href="{{ page.permalink }}">{{ page.title }}</a>
+      </div>
+      <div class="item-info">
+	<div class="item-date">
+	  {{ page.date }}
+	</div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock content %}

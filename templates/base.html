@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title> {{ config.title }} </title>
+  {% if config.extra.favicon_url %}
+  <link rel="icon" type="image/x-icon" href="{{ config.extra.favicon_url }}">
+  {% else %}
+  <link rel="icon" type="image/x-icon" href="{{ get_url(path='favicon.png') }}">
+  {% endif %}
+  {% if config.extra.social %}
+  <link rel= "stylesheet" href= "https://maxst.icons8.com/vue-static/landings/line-awesome/line-awesome/1.3.0/css/line-awesome.min.css" >
+  {% endif %}
+  <link rel="stylesheet" href="{{ get_url(path='style.css') }}">
+  <script src="{{ get_url(path='copycode.js') }}"></script>
+</head>
+
+<body>
+  <div class="wrapper">
+    <div class="main">
+      {% block top %}
+      <div class="top">
+      
+        <a href="{{ config.base_url }}">
+          <img src="{{ config.extra.avatar_url }}" width="72" height="72" class="avatar" border="0">
+        </a>
+
+	<div class="site-info">
+	  <div class="site-title">{{ config.title }}</div>
+	  <div class="site-about">
+	    <p>{{ config.description }}</p>
+	  </div>
+	</div>
+
+      </div>
+
+      <div class="nav-container">
+        <div class="nav">
+	  {% for nav in config.extra.nav %}
+	    {% if nav.url | trim_end_matches(pat="/") == current_path | trim_end_matches(pat="/") %}
+	      <a href="{{ nav.url }}" class="nav-current">{{ nav.text }} </a>
+	    {% else %}
+	      <a href="{{ nav.url }}" class="nav-item">{{ nav.text }} </a>
+	    {% endif %}
+	  {% endfor %}
+
+	  {% for social in config.extra.social %}
+	  <a href="{{ social.url }}"><i class="{{ social.la_icon }}"></i></a>
+	  {% endfor %}
+
+        </div>
+      </div>
+
+      {% endblock top %}
+
+      {% block content %} {% endblock content %}
+    </div>
+  </div>
+</body>
+
+</html>

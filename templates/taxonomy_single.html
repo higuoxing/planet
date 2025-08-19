@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block nav_tags %}
+<a href="{{ get_url(path='/tags') }}" class="nav-current"> Tags </a>
+{% endblock nav_tags %}
+
+{% block content %}
+
+<div class="tag-container">
+  <div class="tag-caption">
+    <a href="{{ get_url(path=taxonomy.name) }}">{{ taxonomy.name }}</a>
+    <span class="chevron">›</span>
+  </div>
+  <div class="tag-title">
+    {{ term.name }}
+  </div>
+  <div class="tag-count">
+    {{ term.page_count }} articles
+  </div>
+</div>
+
+<div class="items">
+  {% for page in term.pages %}
+  <div class="item">
+    <div class="item-main">
+      <div class="item-title"><a href="{{ page.permalink }}">{{ page.title }}</a></div>
+      <div class="item-info">
+	<div class="item-date">{{ page.date }}</div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}
