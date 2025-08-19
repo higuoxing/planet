@@ -1,5 +1,5 @@
 # The URL the site will be built for
-base_url = "/"
+base_url = "https://higuoxing.github.io/planet/"
 
 title = "Planet"
 description = "The 'Planet' theme for Zola"
@@ -36,20 +36,20 @@ highlight_theme = "Tomorrow"
 render_emoji = true
 
 [extra]
-favicon_url = "/favicon.png"
-avatar_url = "/avatar.jpeg"
+favicon_url = "https://higuoxing.github.io/planet/favicon.png"
+avatar_url = "https://higuoxing.github.io/planet/avatar.jpeg"
 
 [[extra.nav]]
 text = "Home"
-url = "/"
+path = "/"
 
 [[extra.nav]]
 text = "Tags"
-url = "/tags"
+path = "/tags"
 
 [[extra.nav]]
 text = "Archive"
-url = "/archive"
+path = "/archive"
 
 # Refer to https://icons8.com/line-awesome for icon names
 [[extra.social]]
