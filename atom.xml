@@ -2,11 +2,11 @@
 <feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
     <title>Planet</title>
     <subtitle>The &#x27;Planet&#x27; theme for Zola</subtitle>
-    <link rel="self" type="application/atom+xml" href="/atom.xml"/>
-    <link rel="alternate" type="text/html" href="/"/>
+    <link rel="self" type="application/atom+xml" href="https://higuoxing.github.io/planet/atom.xml"/>
+    <link rel="alternate" type="text/html" href="https://higuoxing.github.io/planet/"/>
     <generator uri="https://www.getzola.org/">Zola</generator>
     <updated>2023-10-09T00:00:00+00:00</updated>
-    <id>/atom.xml</id>
+    <id>https://higuoxing.github.io/planet/atom.xml</id>
     <entry xml:lang="en">
         <title>Implementing an alternative JIT provider for PostgreSQL</title>
         <published>2023-10-09T00:00:00+00:00</published>
@@ -20,10 +20,10 @@
           </name>
         </author>
         
-        <link rel="alternate" type="text/html" href="/archive/implementing-jit-provider-for-pgsql/"/>
-        <id>/archive/implementing-jit-provider-for-pgsql/</id>
+        <link rel="alternate" type="text/html" href="https://higuoxing.github.io/planet/archive/implementing-jit-provider-for-pgsql/"/>
+        <id>https://higuoxing.github.io/planet/archive/implementing-jit-provider-for-pgsql/</id>
         
-        <content type="html" xml:base="/archive/implementing-jit-provider-for-pgsql/">&lt;p&gt;Just in time compilation is added to PostgreSQL since the version of 11. The default JIT provider for PostgreSQL is based on LLVM. PostgreSQL allows user to use an alternative JIT provider by setting the &lt;code&gt;jit_provider&lt;&#x2F;code&gt; GUC parameter&lt;sup class=&quot;footnote-reference&quot;&gt;&lt;a href=&quot;#1&quot;&gt;1&lt;&#x2F;a&gt;&lt;&#x2F;sup&gt;. The pluggable JIT interface is very easy to use and I&#x27;ve successfully built two prototypes, one emits C codes&lt;sup class=&quot;footnote-reference&quot;&gt;&lt;a href=&quot;#2&quot;&gt;2&lt;&#x2F;a&gt;&lt;&#x2F;sup&gt; and the other one emits assembly codes&lt;sup class=&quot;footnote-reference&quot;&gt;&lt;a href=&quot;#3&quot;&gt;3&lt;&#x2F;a&gt;&lt;&#x2F;sup&gt; using the AsmJit library&lt;sup class=&quot;footnote-reference&quot;&gt;&lt;a href=&quot;#4&quot;&gt;4&lt;&#x2F;a&gt;&lt;&#x2F;sup&gt;. In this post, I&#x27;ll give a brief introduction to the existing LLVM JIT provider and show you how to implement the prototype that emits C codes. It&#x27;s fun and easy.&lt;&#x2F;p&gt;
+        <content type="html" xml:base="https://higuoxing.github.io/planet/archive/implementing-jit-provider-for-pgsql/">&lt;p&gt;Just in time compilation is added to PostgreSQL since the version of 11. The default JIT provider for PostgreSQL is based on LLVM. PostgreSQL allows user to use an alternative JIT provider by setting the &lt;code&gt;jit_provider&lt;&#x2F;code&gt; GUC parameter&lt;sup class=&quot;footnote-reference&quot;&gt;&lt;a href=&quot;#1&quot;&gt;1&lt;&#x2F;a&gt;&lt;&#x2F;sup&gt;. The pluggable JIT interface is very easy to use and I&#x27;ve successfully built two prototypes, one emits C codes&lt;sup class=&quot;footnote-reference&quot;&gt;&lt;a href=&quot;#2&quot;&gt;2&lt;&#x2F;a&gt;&lt;&#x2F;sup&gt; and the other one emits assembly codes&lt;sup class=&quot;footnote-reference&quot;&gt;&lt;a href=&quot;#3&quot;&gt;3&lt;&#x2F;a&gt;&lt;&#x2F;sup&gt; using the AsmJit library&lt;sup class=&quot;footnote-reference&quot;&gt;&lt;a href=&quot;#4&quot;&gt;4&lt;&#x2F;a&gt;&lt;&#x2F;sup&gt;. In this post, I&#x27;ll give a brief introduction to the existing LLVM JIT provider and show you how to implement the prototype that emits C codes. It&#x27;s fun and easy.&lt;&#x2F;p&gt;
 &lt;h2 id=&quot;introduction-to-the-llvm-jit-provider&quot;&gt;Introduction to the LLVM JIT provider&lt;&#x2F;h2&gt;
 &lt;h3 id=&quot;enable-the-llvm-jit&quot;&gt;Enable the LLVM JIT&lt;&#x2F;h3&gt;
 &lt;p&gt;The builtin JIT provider can be enabled by appending &lt;code&gt;--with-llvm&lt;&#x2F;code&gt; to configuration flags when building PostgreSQL. If you have multiple LLVM toolchains installed on your system, you may need to specify the &lt;code&gt;CLANG&lt;&#x2F;code&gt; and &lt;code&gt;LLVM_CONFIG&lt;&#x2F;code&gt; environment variable to make sure they are from the same LLVM toolchain set. Otherwise, there will be ABI incompatible issues.&lt;&#x2F;p&gt;
@@ -564,7 +564,7 @@
 &lt;&#x2F;span&gt;&lt;span&gt; Result  (cost&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;0&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;00&lt;&#x2F;span&gt;&lt;span&gt;..&lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;0&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;01&lt;&#x2F;span&gt;&lt;span&gt; rows&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;1&lt;&#x2F;span&gt;&lt;span&gt; width&lt;&#x2F;span&gt;&lt;span style=&quot;color:#3e999f;&quot;&gt;=&lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;4&lt;&#x2F;span&gt;&lt;span&gt;)
 &lt;&#x2F;span&gt;&lt;span&gt;(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#f5871f;&quot;&gt;1&lt;&#x2F;span&gt;&lt;span&gt; row)
 &lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
-&lt;p&gt;In order to jit the simplest query &lt;code&gt;SELECT 1&lt;&#x2F;code&gt;, we need to implement 3 operators: &lt;code&gt;EEOP_CONST (16)&lt;&#x2F;code&gt;, &lt;code&gt;EEOP_ASSIGN_TMP (14)&lt;&#x2F;code&gt;, &lt;code&gt;EEOP_DONE (0)&lt;&#x2F;code&gt;. Remember what we have mentioned in &lt;a href=&quot;&#x2F;archive&#x2F;implementing-jit-provider-for-pgsql&#x2F;#implement-our-own-jit-provider-prototype&quot;&gt;the begining of this chapter&lt;&#x2F;a&gt;?&lt;&#x2F;p&gt;
+&lt;p&gt;In order to jit the simplest query &lt;code&gt;SELECT 1&lt;&#x2F;code&gt;, we need to implement 3 operators: &lt;code&gt;EEOP_CONST (16)&lt;&#x2F;code&gt;, &lt;code&gt;EEOP_ASSIGN_TMP (14)&lt;&#x2F;code&gt;, &lt;code&gt;EEOP_DONE (0)&lt;&#x2F;code&gt;. Remember what we have mentioned in &lt;a href=&quot;https:&#x2F;&#x2F;higuoxing.github.io&#x2F;planet&#x2F;archive&#x2F;implementing-jit-provider-for-pgsql&#x2F;#implement-our-own-jit-provider-prototype&quot;&gt;the begining of this chapter&lt;&#x2F;a&gt;?&lt;&#x2F;p&gt;
 &lt;blockquote&gt;
 &lt;p&gt;The emitted function is identical to &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;postgres&#x2F;postgres&#x2F;blob&#x2F;526fe0d79914b2dfcfd79effd1ab26ff62469248&#x2F;src&#x2F;backend&#x2F;executor&#x2F;execExprInterp.c#L395&quot;&gt;&lt;code&gt;src&#x2F;backend&#x2F;executor&#x2F;execExprInterp.c:ExecInterpExpr&lt;&#x2F;code&gt;&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
 &lt;&#x2F;blockquote&gt;
@@ -1599,10 +1599,10 @@
           </name>
         </author>
         
-        <link rel="alternate" type="text/html" href="/archive/first-attempt-on-clang-plugin/"/>
-        <id>/archive/first-attempt-on-clang-plugin/</id>
+        <link rel="alternate" type="text/html" href="https://higuoxing.github.io/planet/archive/first-attempt-on-clang-plugin/"/>
+        <id>https://higuoxing.github.io/planet/archive/first-attempt-on-clang-plugin/</id>
         
-        <content type="html" xml:base="/archive/first-attempt-on-clang-plugin/">&lt;p&gt;&lt;em&gt;Updated on 2024&#x2F;03&#x2F;28: Recently, I learned a new tool called &lt;a href=&quot;https:&#x2F;&#x2F;codeql.github.com&#x2F;&quot;&gt;CodeQL&lt;&#x2F;a&gt;. The AST matcher introduced in this post can be re-written into the following query.&lt;&#x2F;em&gt;&lt;&#x2F;p&gt;
+        <content type="html" xml:base="https://higuoxing.github.io/planet/archive/first-attempt-on-clang-plugin/">&lt;p&gt;&lt;em&gt;Updated on 2024&#x2F;03&#x2F;28: Recently, I learned a new tool called &lt;a href=&quot;https:&#x2F;&#x2F;codeql.github.com&#x2F;&quot;&gt;CodeQL&lt;&#x2F;a&gt;. The AST matcher introduced in this post can be re-written into the following query.&lt;&#x2F;em&gt;&lt;&#x2F;p&gt;
 &lt;details&gt;
   &lt;summary&gt; suspicious-control-flow-stmt-in-PG_TRY.ql  (Click me to view the content)&lt;&#x2F;summary&gt;
 &lt;pre data-lang=&quot;ql&quot; style=&quot;background-color:#ffffff;color:#4d4d4c;&quot; class=&quot;language-ql &quot;&gt;&lt;code class=&quot;language-ql&quot; data-lang=&quot;ql&quot;&gt;&lt;span&gt;&#x2F;**
@@ -2091,8 +2091,8 @@
           </name>
         </author>
         
-        <link rel="alternate" type="text/html" href="/archive/my-journey-with-llvm-iii/"/>
-        <id>/archive/my-journey-with-llvm-iii/</id>
+        <link rel="alternate" type="text/html" href="https://higuoxing.github.io/planet/archive/my-journey-with-llvm-iii/"/>
+        <id>https://higuoxing.github.io/planet/archive/my-journey-with-llvm-iii/</id>
         
         <summary type="html">&lt;p&gt;My GSoC comes to an end and this is a report of my work during the last 3 months. My project is adding DWARF support to &lt;code&gt;yaml2obj&lt;&#x2F;code&gt;, especially &lt;code&gt;yaml2elf&lt;&#x2F;code&gt;. The original proposal is &lt;a href=&quot;https:&#x2F;&#x2F;docs.google.com&#x2F;document&#x2F;d&#x2F;13wNr4JbXtzaOly-UsFt7vxI3LKXzik_lVU58ICqslWM&#x2F;edit?usp=sharing&quot;&gt;here&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;</summary>
         
@@ -2110,8 +2110,8 @@
           </name>
         </author>
         
-        <link rel="alternate" type="text/html" href="/archive/my-journey-with-llvm-ii/"/>
-        <id>/archive/my-journey-with-llvm-ii/</id>
+        <link rel="alternate" type="text/html" href="https://higuoxing.github.io/planet/archive/my-journey-with-llvm-ii/"/>
+        <id>https://higuoxing.github.io/planet/archive/my-journey-with-llvm-ii/</id>
         
         <summary type="html">&lt;p&gt;During the second coding period, we’ve implemented the &lt;code&gt;.debug_str_offsets&lt;&#x2F;code&gt;, &lt;code&gt;.debug_rnglists&lt;&#x2F;code&gt; and &lt;code&gt;.debug_loclists&lt;&#x2F;code&gt; section. We’re able to handcraft these 3 sections via the following syntax.&lt;&#x2F;p&gt;</summary>
         
@@ -2129,8 +2129,8 @@
           </name>
         </author>
         
-        <link rel="alternate" type="text/html" href="/archive/my-journey-with-llvm-i/"/>
-        <id>/archive/my-journey-with-llvm-i/</id>
+        <link rel="alternate" type="text/html" href="https://higuoxing.github.io/planet/archive/my-journey-with-llvm-i/"/>
+        <id>https://higuoxing.github.io/planet/archive/my-journey-with-llvm-i/</id>
         
         <summary type="html">&lt;p&gt;It has been one month since my proposal gets accepted by GSoC&#x27;20. I learned a lot and had a wonderful time. Besides, we’ve made some progress towards our goal. Hence, it’s a good time to review what I’ve done and what I’ve learned in the first coding period.&lt;&#x2F;p&gt;</summary>
         

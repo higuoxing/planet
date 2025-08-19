@@ -5,13 +5,13 @@
   <meta charset="utf-8">
   <title> Planet </title>
   
-  <link rel="icon" type="image/x-icon" href="&#x2F;favicon.png">
+  <link rel="icon" type="image/x-icon" href="https:&#x2F;&#x2F;higuoxing.github.io&#x2F;planet&#x2F;favicon.png">
   
   
   <link rel= "stylesheet" href= "https://maxst.icons8.com/vue-static/landings/line-awesome/line-awesome/1.3.0/css/line-awesome.min.css" >
   
-  <link rel="stylesheet" href="/style.css">
-  <script src="/copycode.js"></script>
+  <link rel="stylesheet" href="https://higuoxing.github.io/planet/style.css">
+  <script src="https://higuoxing.github.io/planet/copycode.js"></script>
 </head>
 
 <body>
@@ -24,12 +24,12 @@
 <div class="breadcrumb">
   <div class="breadcrumb-inner">
     <div class="breadcrumb-avatar">
-      <a href="">
-	<img src="/avatar.jpeg" height="16" class="breadcrumb-avatar-image" border="0">
+      <a href="https://higuoxing.github.io/planet">
+	<img src="https://higuoxing.github.io/planet/avatar.jpeg" height="16" class="breadcrumb-avatar-image" border="0">
       </a>
     </div>
 
-    <a href="">Planet</a>
+    <a href="https://higuoxing.github.io/planet">Planet</a>
     <span class="chevron">›</span>
   </div>
 </div>
@@ -48,11 +48,11 @@
     <span>Tags:</span>
     
     
-    <a href="/tags/jit/" class="tag-item">JIT</a>
+    <a href="https://higuoxing.github.io/planet/tags/jit/" class="tag-item">JIT</a>
     
-    <a href="/tags/llvm/" class="tag-item">LLVM</a>
+    <a href="https://higuoxing.github.io/planet/tags/llvm/" class="tag-item">LLVM</a>
     
-    <a href="/tags/postgresql/" class="tag-item">PostgreSQL</a>
+    <a href="https://higuoxing.github.io/planet/tags/postgresql/" class="tag-item">PostgreSQL</a>
     
     
   </div>
@@ -599,7 +599,7 @@
 </span><span> Result  (cost</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">00</span><span>..</span><span style="color:#f5871f;">0</span><span>.</span><span style="color:#f5871f;">01</span><span> rows</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">1</span><span> width</span><span style="color:#3e999f;">=</span><span style="color:#f5871f;">4</span><span>)
 </span><span>(</span><span style="color:#f5871f;">1</span><span> row)
 </span></code></pre>
-<p>In order to jit the simplest query <code>SELECT 1</code>, we need to implement 3 operators: <code>EEOP_CONST (16)</code>, <code>EEOP_ASSIGN_TMP (14)</code>, <code>EEOP_DONE (0)</code>. Remember what we have mentioned in <a href="/archive/implementing-jit-provider-for-pgsql/#implement-our-own-jit-provider-prototype">the begining of this chapter</a>?</p>
+<p>In order to jit the simplest query <code>SELECT 1</code>, we need to implement 3 operators: <code>EEOP_CONST (16)</code>, <code>EEOP_ASSIGN_TMP (14)</code>, <code>EEOP_DONE (0)</code>. Remember what we have mentioned in <a href="https://higuoxing.github.io/planet/archive/implementing-jit-provider-for-pgsql/#implement-our-own-jit-provider-prototype">the begining of this chapter</a>?</p>
 <blockquote>
 <p>The emitted function is identical to <a href="https://github.com/postgres/postgres/blob/526fe0d79914b2dfcfd79effd1ab26ff62469248/src/backend/executor/execExprInterp.c#L395"><code>src/backend/executor/execExprInterp.c:ExecInterpExpr</code></a>.</p>
 </blockquote>

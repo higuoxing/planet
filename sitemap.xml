@@ -1,47 +1,47 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
-        <loc>/</loc>
+        <loc>https://higuoxing.github.io/planet/</loc>
     </url>
     <url>
-        <loc>/archive/</loc>
+        <loc>https://higuoxing.github.io/planet/archive/</loc>
     </url>
     <url>
-        <loc>/archive/first-attempt-on-clang-plugin/</loc>
+        <loc>https://higuoxing.github.io/planet/archive/first-attempt-on-clang-plugin/</loc>
         <lastmod>2023-04-13</lastmod>
     </url>
     <url>
-        <loc>/archive/implementing-jit-provider-for-pgsql/</loc>
+        <loc>https://higuoxing.github.io/planet/archive/implementing-jit-provider-for-pgsql/</loc>
         <lastmod>2023-10-09</lastmod>
     </url>
     <url>
-        <loc>/archive/my-journey-with-llvm-i/</loc>
+        <loc>https://higuoxing.github.io/planet/archive/my-journey-with-llvm-i/</loc>
         <lastmod>2020-06-30</lastmod>
     </url>
     <url>
-        <loc>/archive/my-journey-with-llvm-ii/</loc>
+        <loc>https://higuoxing.github.io/planet/archive/my-journey-with-llvm-ii/</loc>
         <lastmod>2020-07-30</lastmod>
     </url>
     <url>
-        <loc>/archive/my-journey-with-llvm-iii/</loc>
+        <loc>https://higuoxing.github.io/planet/archive/my-journey-with-llvm-iii/</loc>
         <lastmod>2020-08-28</lastmod>
     </url>
     <url>
-        <loc>/tags/</loc>
+        <loc>https://higuoxing.github.io/planet/tags/</loc>
     </url>
     <url>
-        <loc>/tags/clang/</loc>
+        <loc>https://higuoxing.github.io/planet/tags/clang/</loc>
     </url>
     <url>
-        <loc>/tags/gsoc/</loc>
+        <loc>https://higuoxing.github.io/planet/tags/gsoc/</loc>
     </url>
     <url>
-        <loc>/tags/jit/</loc>
+        <loc>https://higuoxing.github.io/planet/tags/jit/</loc>
     </url>
     <url>
-        <loc>/tags/llvm/</loc>
+        <loc>https://higuoxing.github.io/planet/tags/llvm/</loc>
     </url>
     <url>
-        <loc>/tags/postgresql/</loc>
+        <loc>https://higuoxing.github.io/planet/tags/postgresql/</loc>
     </url>
 </urlset>
