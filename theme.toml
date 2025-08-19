@@ -1,0 +1,10 @@
+name = "planet"
+license = "MIT"
+licenselink = "https://github.com/higuoxing/planet/blob/master/LICENSE"
+description = "The 'Planet' theme for Hugo"
+homepage = "https://github.com/higuoxing/planet"
+min_version = "0.110.0"
+
+[author]
+  name = "higuoxing"
+  homepage = "https://higuoxing.com"

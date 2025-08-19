@@ -1,0 +1,44 @@
+{{ define "main" }}
+<div class="article-wrapper">
+  <nav class="post-breadcrumb" aria-label="Breadcrumb">
+    <a href="{{ "/" | relURL }}" class="breadcrumb-item">Blog</a>
+  </nav>
+
+  <header class="article-header">
+    <h1 class="article-title">{{ .Title }}</h1>
+    {{ with .Params.tags }}
+    <div class="article-tags-row">
+      <span class="article-tags-inline">
+        [{{ range $i, $t := . }}{{ if $i }}, {{ end }}<a href="{{ "tags/" | relURL }}{{ $t | urlize }}/" class="tag-link">{{ $t }}</a>{{ end }}]
+      </span>
+    </div>
+    {{ end }}
+
+    <div class="article-byline">
+      <time class="byline-date" datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "January 2, 2006" }}</time>
+      <span class="byline-sep">·</span>
+      <span class="byline-readtime">{{ .ReadingTime }} min read</span>
+    </div>
+    <hr class="dot-fill" />
+  </header>
+
+  <div class="article-layout">
+    <article class="article-main">
+      <div class="content">
+        {{ .Content }}
+      </div>
+    </article>
+
+    {{ with .TableOfContents }}
+    <aside class="article-sidebar">
+      <details class="toc-box" open>
+        <summary class="toc-title">Table of contents</summary>
+        <div class="toc-content">
+          {{ . }}
+        </div>
+      </details>
+    </aside>
+    {{ end }}
+  </div>
+</div>
+{{ end }}

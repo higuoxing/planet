@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="{{ .Site.Language.Lang | default .Site.Language.Locale | default "en" }}">
+<head>
+  <meta charset="utf-8">
+  <script>
+    (function() {
+      function getStoredTheme() {
+        try {
+          var t = localStorage.getItem('theme');
+          if (t === 'dark' || t === 'light') return t;
+        } catch (e) {}
+        try {
+          var m = document.cookie.match(/(?:^|;\s*)theme=([^;]+)/);
+          if (m && (m[1] === 'dark' || m[1] === 'light')) return m[1];
+        } catch (e) {}
+        return null;
+      }
+      var theme = getStoredTheme();
+      if (!theme) {
+        theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="{{ .Site.Params.style.theme_color | default "#0d0d0d" }}">
+  <title>{{ if .IsHome }}{{ .Site.Title }}{{ else if .Title }}{{ .Title }} · {{ .Site.Title }}{{ else }}{{ .Site.Title }}{{ end }}</title>
+  <meta name="description" content="{{ with .Description }}{{ . }}{{ else }}{{ .Summary | default .Site.Params.description }}{{ end }}">
+  <link rel="canonical" href="{{ .Permalink }}">
+
+  <meta property="og:type" content="{{ if .IsPage }}article{{ else }}website{{ end }}">
+  <meta property="og:site_name" content="{{ .Site.Title }}">
+  <meta property="og:title" content="{{ if .IsHome }}{{ .Site.Title }}{{ else }}{{ .Title }}{{ end }}">
+  <meta property="og:description" content="{{ with .Description }}{{ . }}{{ else }}{{ .Summary | default .Site.Params.description }}{{ end }}">
+  <meta property="og:url" content="{{ .Permalink }}">
+  {{ with .Site.Params.avatar_url }}
+  <meta property="og:image" content="{{ . | absURL }}">
+  {{ end }}
+
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="{{ if .IsHome }}{{ .Site.Title }}{{ else }}{{ .Title }}{{ end }}">
+  <meta name="twitter:description" content="{{ with .Description }}{{ . }}{{ else }}{{ .Summary | default .Site.Params.description }}{{ end }}">
+
+  {{ with .OutputFormats.Get "RSS" }}
+  <link rel="alternate" type="application/rss+xml" title="{{ $.Site.Title }}" href="{{ .RelPermalink }}">
+  {{ end }}
+  <link rel="alternate" type="text/plain" href="{{ "llms.txt" | absURL }}" title="LLM Context">
+  {{ with .OutputFormats.Get "Markdown" }}
+  <link rel="alternate" type="text/markdown" href="{{ .Permalink }}" title="{{ $.Title }} (Markdown)">
+  {{ end }}
+
+  {{ with .Site.Params.favicon_url }}
+  <link rel="icon" href="{{ . }}" sizes="any">
+  {{ else }}
+  <link rel="icon" type="image/x-icon" href="{{ "favicon.png" | relURL }}">
+  {{ end }}
+
+  <link rel="preload" href="{{ "fonts/inter.woff2" | relURL }}" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="{{ "fonts/jetbrains-mono.woff2" | relURL }}" as="font" type="font/woff2" crossorigin>
+
+  {{ $style := resources.Get "sass/style.scss" | toCSS (dict "outputStyle" "compressed") | minify | fingerprint }}
+  <link rel="stylesheet" href="{{ $style.RelPermalink }}" integrity="{{ $style.Data.Integrity }}">
+  <style>
+    :root {
+      --accent: {{ .Site.Params.style.accent | default "#336bad" | safeCSS }};
+      --accent-strong: {{ .Site.Params.style.accent_strong | default "#26548b" | safeCSS }};
+      --accent-soft: {{ .Site.Params.style.accent_soft | default "rgba(51, 107, 173, 0.12)" | safeCSS }};
+      --accent-contrast: {{ .Site.Params.style.accent_contrast | default "#ffffff" | safeCSS }};
+    }
+    [data-theme="dark"] {
+      --accent: {{ .Site.Params.style.dark_accent | default "#6699ff" | safeCSS }};
+      --accent-strong: {{ .Site.Params.style.dark_accent_strong | default "#8ab0ff" | safeCSS }};
+      --accent-soft: {{ .Site.Params.style.dark_accent_soft | default "rgba(102, 153, 255, 0.15)" | safeCSS }};
+      --accent-contrast: {{ .Site.Params.style.dark_accent_contrast | default "#0b1120" | safeCSS }};
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --accent: {{ .Site.Params.style.dark_accent | default "#6699ff" | safeCSS }};
+        --accent-strong: {{ .Site.Params.style.dark_accent_strong | default "#8ab0ff" | safeCSS }};
+        --accent-soft: {{ .Site.Params.style.dark_accent_soft | default "rgba(102, 153, 255, 0.15)" | safeCSS }};
+        --accent-contrast: {{ .Site.Params.style.dark_accent_contrast | default "#0b1120" | safeCSS }};
+      }
+    }
+  </style>
+
+  {{ if .IsPage }}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": {{ .Title }},
+    "description": {{ with .Description }}{{ . }}{{ else }}{{ .Summary | plainify | chomp }}{{ end }},
+    "datePublished": {{ .Date.Format "2006-01-02T15:04:05Z07:00" }},
+    "dateModified": {{ .Lastmod.Format "2006-01-02T15:04:05Z07:00" }},
+    "mainEntityOfPage": {
+      "@type": "WebPage",
+      "@id": {{ .Permalink }}
+    },
+    "author": {
+      "@type": "Person",
+      "name": "{{ .Site.Params.author }}",
+      "url": "https://github.com/higuoxing"
+    }
+    {{ with .Params.tags }},
+    "keywords": [{{ range $i, $e := . }}{{ if $i }}, {{ end }}"{{ $e }}"{{ end }}]
+    {{ end }}
+  }
+  </script>
+  {{ else if .IsHome }}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": {{ .Site.Title }},
+    "url": {{ .Site.BaseURL }},
+    "description": {{ .Site.Params.description }},
+    "author": {
+      "@type": "Person",
+      "name": "{{ .Site.Params.author }}",
+      "url": "https://github.com/higuoxing"
+    }
+  }
+  </script>
+  {{ end }}
+</head>
+
+<body>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <div class="site-header-brand">
+        <a href="{{ "/" | relURL }}" class="brand-link">
+          <img src="{{ .Site.Params.avatar_url }}" width="28" height="28" class="brand-avatar" alt="{{ .Site.Title }}">
+          <span class="brand-name">{{ .Site.Title }}</span>
+        </a>
+        <button type="button" class="theme-toggle" aria-label="Toggle dark/light mode" title="Toggle theme">
+          <span class="theme-icon-sun">{{ partial "icon.html" "las la-sun" }}</span>
+          <span class="theme-icon-moon">{{ partial "icon.html" "las la-moon" }}</span>
+        </button>
+      </div>
+
+      {{ if .Site.Params.nav }}
+      <nav class="site-header-nav" aria-label="Main navigation">
+        {{ $currentRel := .RelPermalink }}
+        {{ range .Site.Params.nav }}
+          {{ $isActive := eq (strings.TrimSuffix "/" .path) (strings.TrimSuffix "/" $currentRel) }}
+          <a href="{{ .path | relURL }}" class="nav-link{{ if $isActive }} active{{ end }}">{{ .text }}</a>
+        {{ end }}
+      </nav>
+      {{ end }}
+    </div>
+  </header>
+
+  <main class="site-main">
+    <div class="site-container">
+      {{ block "main" . }}{{ end }}
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-footer-inner">
+      <div class="footer-left">
+        <span>© {{ now.Format "2006" }} {{ .Site.Params.author }}. All rights reserved.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function() {
+      function setStoredTheme(theme) {
+        try { localStorage.setItem('theme', theme); } catch (e) {}
+        try { document.cookie = 'theme=' + encodeURIComponent(theme) + ';path=/;max-age=31536000;SameSite=Lax'; } catch (e) {}
+      }
+
+      function handleCopy(btn) {
+        var block = btn.closest('.code-block') || btn.closest('.highlight') || btn.closest('pre');
+        var code = block ? (block.querySelector('td.lntd:last-child code') || block.querySelector('code') || block) : null;
+        if (!code) return;
+        var text = (code.textContent || '').replace(/\r?\n$/, '');
+
+        function markCopied() {
+          btn.innerText = 'Copied!';
+          btn.classList.add('copied');
+          setTimeout(function() {
+            btn.innerText = 'Copy';
+            btn.classList.remove('copied');
+          }, 1500);
+        }
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(markCopied).catch(function() {
+            fallbackCopy(text, markCopied);
+          });
+        } else {
+          fallbackCopy(text, markCopied);
+        }
+      }
+
+      function fallbackCopy(text, cb) {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          if (document.execCommand('copy')) cb();
+        } catch (e) {}
+        document.body.removeChild(ta);
+      }
+
+      document.addEventListener('click', function(e) {
+        var themeBtn = e.target.closest('.theme-toggle');
+        if (themeBtn) {
+          e.preventDefault();
+          var current = document.documentElement.getAttribute('data-theme');
+          var systemIsDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var isDark = current === 'dark' || (!current && systemIsDark);
+          var newTheme = isDark ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', newTheme);
+          setStoredTheme(newTheme);
+          return;
+        }
+
+        var copyBtn = e.target.closest('.copy-btn');
+        if (copyBtn) {
+          e.preventDefault();
+          handleCopy(copyBtn);
+        }
+      });
+
+      // Table of Contents Active Entry Spy
+      function initTocSpy() {
+        var toc = document.getElementById('TableOfContents');
+        if (!toc) return;
+
+        var tocBox = document.querySelector('.article-sidebar .toc-box');
+        if (tocBox && window.innerWidth <= 960) {
+          tocBox.removeAttribute('open');
+        }
+
+        toc.addEventListener('click', function(e) {
+          var a = e.target.closest('a');
+          if (a && window.innerWidth <= 960 && tocBox) {
+            tocBox.removeAttribute('open');
+          }
+        });
+
+        var tocLinks = Array.prototype.slice.call(toc.querySelectorAll('a[href^="#"]'));
+        if (!tocLinks.length) return;
+
+        var items = [];
+        for (var i = 0; i < tocLinks.length; i++) {
+          var link = tocLinks[i];
+          var rawId = link.getAttribute('href').replace(/^#/, '');
+          try {
+            var id = decodeURIComponent(rawId);
+            var target = document.getElementById(id);
+            if (target) {
+              items.push({ link: link, target: target, li: link.closest('li') });
+            }
+          } catch (err) {}
+        }
+
+        if (!items.length) return;
+
+        var ticking = false;
+
+        function onScroll() {
+          if (!ticking) {
+            requestAnimationFrame(function() {
+              updateActive();
+              ticking = false;
+            });
+            ticking = true;
+          }
+        }
+
+        function updateActive() {
+          var offset = 100;
+          var activeIndex = -1;
+          var scrollBottom = (window.innerHeight + (window.scrollY || window.pageYOffset)) >= (document.documentElement.scrollHeight - 30);
+
+          if (scrollBottom) {
+            activeIndex = items.length - 1;
+          } else {
+            for (var i = 0; i < items.length; i++) {
+              var rect = items[i].target.getBoundingClientRect();
+              if (rect.top <= offset) {
+                activeIndex = i;
+              } else {
+                break;
+              }
+            }
+          }
+
+          if (activeIndex === -1 && items.length > 0) {
+            var firstRect = items[0].target.getBoundingClientRect();
+            if (firstRect.top < window.innerHeight * 0.4) {
+              activeIndex = 0;
+            }
+          }
+
+          for (var j = 0; j < items.length; j++) {
+            var isCurrent = (j === activeIndex);
+            if (isCurrent) {
+              items[j].link.classList.add('active');
+              if (items[j].li) items[j].li.classList.add('active');
+            } else {
+              items[j].link.classList.remove('active');
+              if (items[j].li) items[j].li.classList.remove('active');
+            }
+          }
+        }
+
+        window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', function() {
+          onScroll();
+          if (tocBox) {
+            if (window.innerWidth > 960) {
+              tocBox.setAttribute('open', '');
+            }
+          }
+        }, { passive: true });
+        updateActive();
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initTocSpy);
+      } else {
+        initTocSpy();
+      }
+    })();
+  </script>
+</body>
+</html>
