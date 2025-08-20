@@ -777,18 +777,18 @@ blockquote {
 
 /* END: archive */
 
-footer {
-    font-size: 0.9em;
-    color: $foreground-secondary-color;
-    width: 100%;
-}
-
-.footer-inner {
-    width: 100%;
-    max-width: $content-max-width;
-    margin-left: auto;
-    margin-right: auto;
-}
+// footer {
+//     font-size: 0.9em;
+//     color: $foreground-secondary-color;
+//     width: 100%;
+// }
+// 
+// .footer-inner {
+//     width: 100%;
+//     max-width: $content-max-width;
+//     margin-left: auto;
+//     margin-right: auto;
+// }
 
 /* Footnote container */
 /* Hack! Only the first footnote gets a top border */

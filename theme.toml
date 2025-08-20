@@ -31,6 +31,9 @@ generate_feeds = true
 highlight_code = true
 highlight_theme = "Tomorrow"
 
+# Backreference for footnotes.
+bottom_footnotes = true
+
 # When set to "true", emoji aliases translated to their corresponding
 # Unicode emoji equivalent in the rendered Markdown files. (e.g.: :smile: => 😄)
 render_emoji = true
