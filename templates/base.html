@@ -7,7 +7,7 @@
   {% if config.extra.favicon_url %}
   <link rel="icon" type="image/x-icon" href="{{ config.extra.favicon_url }}">
   {% else %}
-  <link rel="icon" type="image/x-icon" href="{{ config.base_url + get_url(path='favicon.png') }}">
+  <link rel="icon" type="image/x-icon" href="{{ get_url(path='favicon.png') }}">
   {% endif %}
   {% if config.extra.social %}
   <link rel= "stylesheet" href= "https://maxst.icons8.com/vue-static/landings/line-awesome/line-awesome/1.3.0/css/line-awesome.min.css" >
