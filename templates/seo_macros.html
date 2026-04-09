@@ -1,0 +1,10 @@
+{# Shared SEO snippets for page templates #}
+{% macro post_description(page, config) %}
+{%- if page.description -%}
+{{ page.description | trim }}
+{%- elif page.summary -%}
+{{ page.summary | striptags | trim | truncate(length=160, end="…") }}
+{%- else -%}
+{{ page.title }} — {{ config.description }}
+{%- endif -%}
+{% endmacro %}

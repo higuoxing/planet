@@ -1,5 +1,14 @@
 {% extends "base.html" %}
 
+{% block html_title %}Archive · {{ config.title }}{% endblock %}
+{% block meta_description %}Full list of posts on {{ config.title }}. {{ config.description }}{% endblock %}
+{% block og_title %}Archive · {{ config.title }}{% endblock %}
+{% block og_description %}Full list of posts on {{ config.title }}. {{ config.description }}{% endblock %}
+{% block twitter_title %}Archive · {{ config.title }}{% endblock %}
+{% block twitter_description %}Full list of posts on {{ config.title }}. {{ config.description }}{% endblock %}
+{% block canonical %}{{ section.permalink }}{% endblock %}
+{% block og_url %}{{ section.permalink }}{% endblock %}
+
 {% block content %}
 <div class="archive-container">
 

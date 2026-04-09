@@ -1,8 +1,13 @@
 {% extends "base.html" %}
 
-{% block nav_tags %}
-<a href="{{ get_url(path='/tags') }}" class="nav-current"> Tags </a>
-{% endblock nav_tags %}
+{% block html_title %}{{ term.name }} · Tags · {{ config.title }}{% endblock %}
+{% block meta_description %}Posts tagged “{{ term.name }}” on {{ config.title }}. {{ config.description }}{% endblock %}
+{% block og_title %}{{ term.name }} · {{ config.title }}{% endblock %}
+{% block og_description %}Posts tagged “{{ term.name }}” on {{ config.title }}. {{ config.description }}{% endblock %}
+{% block twitter_title %}{{ term.name }} · {{ config.title }}{% endblock %}
+{% block twitter_description %}Posts tagged “{{ term.name }}” on {{ config.title }}. {{ config.description }}{% endblock %}
+{% block canonical %}{{ term.permalink }}{% endblock %}
+{% block og_url %}{{ term.permalink }}{% endblock %}
 
 {% block content %}
 

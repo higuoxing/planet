@@ -3,17 +3,44 @@
 
 <head>
   <meta charset="utf-8">
-  <title> {{ config.title }} </title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block html_title %}{{ config.title }}{% endblock %}</title>
+  <meta name="description" content="{% block meta_description %}{{ config.description }}{% endblock %}">
+  <link rel="canonical" href="{% block canonical %}{{ get_url(path=current_path) }}{% endblock %}">
+
+  <meta property="og:type" content="{% block og_type %}website{% endblock %}">
+  <meta property="og:site_name" content="{{ config.title }}">
+  <meta property="og:title" content="{% block og_title %}{{ config.title }}{% endblock %}">
+  <meta property="og:description" content="{% block og_description %}{{ config.description }}{% endblock %}">
+  <meta property="og:url" content="{% block og_url %}{{ get_url(path=current_path) }}{% endblock %}">
+  {% if config.extra.avatar_url %}
+  <meta property="og:image" content="{{ config.extra.avatar_url }}">
+  {% endif %}
+
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="{% block twitter_title %}{{ config.title }}{% endblock %}">
+  <meta name="twitter:description" content="{% block twitter_description %}{{ config.description }}{% endblock %}">
+
+  {% if config.generate_feeds %}
+  <link rel="alternate" type="application/atom+xml" title="{{ config.title }}" href="{{ get_url(path='atom.xml') }}">
+  {% endif %}
+
   {% if config.extra.favicon_url %}
-  <link rel="icon" type="image/x-icon" href="{{ config.extra.favicon_url }}">
+  <link rel="icon" href="{{ config.extra.favicon_url }}" sizes="any">
   {% else %}
   <link rel="icon" type="image/x-icon" href="{{ get_url(path='favicon.png') }}">
   {% endif %}
   {% if config.extra.social %}
-  <link rel= "stylesheet" href= "https://maxst.icons8.com/vue-static/landings/line-awesome/line-awesome/1.3.0/css/line-awesome.min.css" >
+  <link rel="stylesheet" href="https://maxst.icons8.com/vue-static/landings/line-awesome/line-awesome/1.3.0/css/line-awesome.min.css" crossorigin="anonymous">
   {% endif %}
   <link rel="stylesheet" href="{{ get_url(path='style.css') }}">
+  {# Giallo (Zola 0.22+) code block layout #}
+  <style>
+    .giallo-l { display: inline-block; min-height: 1lh; width: 100%; }
+    .giallo-ln { display: inline-block; user-select: none; margin-right: 0.4em; padding: 0.4em; min-width: 3ch; text-align: right; opacity: 0.8; }
+  </style>
   <script src="{{ get_url(path='copycode.js') }}"></script>
+  {% block head_extra %}{% endblock %}
 </head>
 
 <body>
@@ -21,9 +48,9 @@
     <div class="main">
       {% block top %}
       <div class="top">
-      
-        <a href="{{ config.base_url }}">
-          <img src="{{ config.extra.avatar_url }}" width="72" height="72" class="avatar" border="0">
+
+        <a href="{{ get_url(path='/') }}">
+          <img src="{{ config.extra.avatar_url }}" width="72" height="72" class="avatar" alt="{{ config.title }}">
         </a>
 
 	<div class="site-info">
