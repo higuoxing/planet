@@ -91,6 +91,14 @@ code {
     border-radius: 3px;
 }
 
+pre code {
+    padding: 0;
+}
+
+summary, summary * {
+    cursor: pointer !important;
+}
+
 code,
 pre,
 samp,
@@ -529,8 +537,10 @@ img.avatar {
     text-decoration: none;
 }
 
-i[class^="la-"], i[class*=" la-"] {
-    font-size: 1.5em;
+.nav a svg {
+    width: 1.5em;
+    height: 1.5em;
+    vertical-align: middle;
 }
 
 p,
