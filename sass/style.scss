@@ -1,5 +1,21 @@
+@font-face {
+    font-family: 'Literata';
+    font-style: normal;
+    font-weight: 300 700;
+    font-display: swap;
+    src: url('/fonts/literata.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Literata';
+    font-style: italic;
+    font-weight: 300 700;
+    font-display: swap;
+    src: url('/fonts/literata-italic.woff2') format('woff2');
+}
+
 $background-color: #fff;
-$foreground-color: #000;
+$foreground-color: rgb(36, 36, 36);
 $link-color: #336bad;
 $foreground-secondary-color: #666;
 
@@ -21,7 +37,7 @@ $title-line-height: 1.2;
 $content-max-width: 100%;
 $breadcrumb-background-color: rgba(255, 255, 255, 0.8);
 $breadcrumb-border-color: rgba(255, 255, 255, 0.7);
-$serif: Charter, "Bitstream Charter", "Sitka Text", Cambria, serif;
+$serif: 'Literata', Charter, "Bitstream Charter", "Sitka Text", Cambria, serif;
 $sans-serif: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
              "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 $monospace: "Lucida Console", Consolas, "Courier", monospace;
@@ -91,7 +107,7 @@ code {
     padding: 0 4px;
     border-radius: 3px;
     background-color: $code-background-color;
-    color: #1d5080;
+    color: inherit;
 }
 
 pre code {
