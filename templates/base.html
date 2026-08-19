@@ -4,6 +4,26 @@
 
 <head>
   <meta charset="utf-8">
+  <script>
+    (function() {
+      function getStoredTheme() {
+        try {
+          var t = localStorage.getItem('theme');
+          if (t === 'dark' || t === 'light') return t;
+        } catch (e) {}
+        try {
+          var m = document.cookie.match(/(?:^|;\s*)theme=([^;]+)/);
+          if (m && (m[1] === 'dark' || m[1] === 'light')) return m[1];
+        } catch (e) {}
+        return null;
+      }
+      var theme = getStoredTheme();
+      if (!theme) {
+        theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block html_title %}{{ config.title }}{% endblock %}</title>
   <meta name="description" content="{% block meta_description %}{{ config.description }}{% endblock %}">
@@ -37,14 +57,6 @@
     .giallo-l { display: inline-block; min-height: 1lh; width: 100%; }
     .giallo-ln { display: inline-block; user-select: none; margin-right: 0.4em; padding: 0.4em; min-width: 3ch; text-align: right; opacity: 0.8; }
   </style>
-  <script>
-    (function() {
-      var theme = localStorage.getItem('theme');
-      var systemIsDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      var activeTheme = theme || (systemIsDark ? 'dark' : 'light');
-      document.documentElement.setAttribute('data-theme', activeTheme);
-    })();
-  </script>
   <script src="{{ get_url(path='copycode.js') }}"></script>
   {% block head_extra %}{% endblock %}
 </head>
@@ -95,20 +107,24 @@
     </div>
   </div>
   <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      var toggleBtns = document.querySelectorAll('.theme-toggle');
-      if (!toggleBtns.length) return;
-      toggleBtns.forEach(function(btn) {
-        btn.addEventListener('click', function() {
-          var currentTheme = document.documentElement.getAttribute('data-theme');
-          var systemIsDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          var isDark = currentTheme === 'dark' || (!currentTheme && systemIsDark);
-          var newTheme = isDark ? 'light' : 'dark';
-          document.documentElement.setAttribute('data-theme', newTheme);
-          localStorage.setItem('theme', newTheme);
-        });
+    (function() {
+      function setStoredTheme(theme) {
+        try { localStorage.setItem('theme', theme); } catch (e) {}
+        try { document.cookie = 'theme=' + encodeURIComponent(theme) + ';path=/;max-age=31536000;SameSite=Lax'; } catch (e) {}
+      }
+
+      document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.theme-toggle');
+        if (!btn) return;
+        e.preventDefault();
+        var current = document.documentElement.getAttribute('data-theme');
+        var systemIsDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var isDark = current === 'dark' || (!current && systemIsDark);
+        var newTheme = isDark ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', newTheme);
+        setStoredTheme(newTheme);
       });
-    });
+    })();
   </script>
 </body>
 
