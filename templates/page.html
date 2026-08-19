@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "seo_macros.html" as seo %}
+{% import "icon_macros.html" as icons %}
 
 {% block top %}
 {% endblock top %}
@@ -31,6 +32,11 @@
 
     <a href="{{ get_url(path='/') }}">{{ config.title }}</a>
     <span class="chevron">›</span>
+
+    <a href="javascript:void(0)" class="theme-toggle" role="button" aria-label="Toggle theme" title="Toggle dark/light mode">
+      <span class="theme-icon-sun">{{ icons::icon(name="las la-sun") }}</span>
+      <span class="theme-icon-moon">{{ icons::icon(name="las la-moon") }}</span>
+    </a>
   </div>
 </div>
 

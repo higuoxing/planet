@@ -14,67 +14,116 @@
     src: url('/fonts/literata-italic.woff2') format('woff2');
 }
 
-$background-color: #fff;
-$foreground-color: rgb(36, 36, 36);
-$link-color: #336bad;
-$foreground-secondary-color: #666;
+:root {
+    color-scheme: light dark;
 
-$nav-current-background-color: #0f0f0f;
-$nav-current-foreground-color: #fff;
-$nav-item-background-color: #f2f2f2;
-$nav-item-foreground-color: #0f0f0f;
-$nav-item-hover-background-color: #e5e5e5;
+    --background-color: #fff;
+    --foreground-color: rgb(36, 36, 36);
+    --link-color: #336bad;
+    --foreground-secondary-color: #666;
+
+    --nav-current-background-color: #0f0f0f;
+    --nav-current-foreground-color: #fff;
+    --nav-item-background-color: #f2f2f2;
+    --nav-item-foreground-color: #0f0f0f;
+    --nav-item-hover-background-color: #e5e5e5;
+
+    --border-color: #e2e2e2;
+    --chevron-color: #333;
+    --breadcrumb-background-color: rgba(255, 255, 255, 0.8);
+    --breadcrumb-border-color: rgba(255, 255, 255, 0.7);
+    --code-background-color: #f8f8f8;
+    --kbd-color: #444444;
+    --kbd-border-color: #bbb;
+    --kbd-background-color: #f7f7f7;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --background-color: #1c1c1e;
+        --foreground-color: #f1f1f1;
+        --link-color: #6699ff;
+        --foreground-secondary-color: #adadaf;
+
+        --nav-current-background-color: #272727;
+        --nav-current-foreground-color: #f1f1f1;
+        --nav-item-background-color: #0f0f0f;
+        --nav-item-foreground-color: #adadaf;
+        --nav-item-hover-background-color: #3f3f3f;
+
+        --border-color: #2b2b2d;
+        --chevron-color: #eee;
+        --breadcrumb-background-color: rgba(32, 32, 34, 0.8);
+        --breadcrumb-border-color: rgba(32, 32, 34, 0.7);
+        --code-background-color: #2b2b2d;
+        --kbd-color: #eeeeee;
+        --kbd-border-color: #000;
+        --kbd-background-color: #4d4c4c;
+    }
+}
+
+[data-theme="dark"] {
+    color-scheme: dark;
+    --background-color: #1c1c1e;
+    --foreground-color: #f1f1f1;
+    --link-color: #6699ff;
+    --foreground-secondary-color: #adadaf;
+
+    --nav-current-background-color: #272727;
+    --nav-current-foreground-color: #f1f1f1;
+    --nav-item-background-color: #0f0f0f;
+    --nav-item-foreground-color: #adadaf;
+    --nav-item-hover-background-color: #3f3f3f;
+
+    --border-color: #2b2b2d;
+    --chevron-color: #eee;
+    --breadcrumb-background-color: rgba(32, 32, 34, 0.8);
+    --breadcrumb-border-color: rgba(32, 32, 34, 0.7);
+    --code-background-color: #2b2b2d;
+    --kbd-color: #eeeeee;
+    --kbd-border-color: #000;
+    --kbd-background-color: #4d4c4c;
+}
+
+[data-theme="light"] {
+    color-scheme: light;
+}
+
+$background-color: var(--background-color);
+$foreground-color: var(--foreground-color);
+$link-color: var(--link-color);
+$foreground-secondary-color: var(--foreground-secondary-color);
+
+$nav-current-background-color: var(--nav-current-background-color);
+$nav-current-foreground-color: var(--nav-current-foreground-color);
+$nav-item-background-color: var(--nav-item-background-color);
+$nav-item-foreground-color: var(--nav-item-foreground-color);
+$nav-item-hover-background-color: var(--nav-item-hover-background-color);
 
 $icon-secondary-filter: invert(43%) sepia(22%) saturate(10%) hue-rotate(58deg) brightness(87%) contrast(93%);
 $icon-social-filter: invert(28%) sepia(47%) saturate(2131%) hue-rotate(197deg) brightness(95%) contrast(78%);
-$border-color: #e2e2e2;
-$chevron-color: #333;
+$border-color: var(--border-color);
+$chevron-color: var(--chevron-color);
 $site-title-font-size: 2.5em;
 $h1-font-size: 2em;
 $item-gap: 30px;
 $inner-gap: 20px;
 $title-line-height: 1.2;
 $content-max-width: 100%;
-$breadcrumb-background-color: rgba(255, 255, 255, 0.8);
-$breadcrumb-border-color: rgba(255, 255, 255, 0.7);
+$breadcrumb-background-color: var(--breadcrumb-background-color);
+$breadcrumb-border-color: var(--breadcrumb-border-color);
 $serif: 'Literata', Charter, "Bitstream Charter", "Sitka Text", Cambria, serif;
 $sans-serif: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
              "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 $monospace: "Lucida Console", Consolas, "Courier", monospace;
-$code-background-color: #f8f8f8;
-$kbd-color: #444444;
+$code-background-color: var(--code-background-color);
+$kbd-color: var(--kbd-color);
 $kbd-text-shadow: #fff;
-$kbd-border-color: #bbb;
-$kbd-background-color: #f7f7f7;
+$kbd-border-color: var(--kbd-border-color);
+$kbd-background-color: var(--kbd-background-color);
 $kbd-background-image: linear-gradient(top, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0));
 $kbd-background-repeat: repeat-x;
 $kbd-box-shadow: 0px 1px 0 #bbbbbb, 0 2px 1px #999999, 0 2px 0 #bbbbbb, inset 0 1px 1px #ffffff, inset 0 -1px 2px #cccccc;
-
-
-// @media (prefers-color-scheme: dark) {
-// $background-color: #1c1c1e;
-// $foreground-color: #fff;
-// $link-color: #6699ff;
-// $foreground-secondary-color: #adadaf;
-// $nav-current-background-color: #0f0f0f;
-// $nav-current-foreground-color: #f1f1f1;
-// $nav-item-background-color: #272727;
-// $nav-item-foreground-color: #f1f1f1;
-// $nav-item-hover-background-color: #3f3f3f;
-// $icon-secondary-filter: invert(87%) sepia(6%) saturate(58%) hue-rotate(202deg) brightness(80%) contrast(87%);
-// $icon-social-filter: invert(64%) sepia(85%) saturate(4030%) hue-rotate(203deg) brightness(108%) contrast(102%);
-// $border-color: #2b2b2d;
-// $chevron-color: #eee;
-// $breadcrumb-background-color: rgba(32, 32, 34, 0.8);
-// $breadcrumb-border-color: rgba(32, 32, 34, 0.7);
-// $code-background-color: #2b2b2d;
-// $kbd-color: #eeeeee;
-// $kbd-text-shadow: #000000;
-// $kbd-border-color: #000;
-// $kbd-background-color: #4d4c4c;
-// $kbd-background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0) 80%, rgba(0, 0, 0, 0));
-// $kbd-background-repeat: no-repeat;
-// $kbd-box-shadow: 0px 1px 0 #000000, 0 2px 1px rgba(90, 90, 90, 0.5), inset 0 1px 1px #aaaaaa, inset 0 -1px 2px #272727;
 
 html {
     padding: 0;
@@ -152,13 +201,20 @@ pre {
     position: absolute;
     top: 0.4rem;
     right: 0.4rem;
-    border: none;
-    padding: 0.3rem 0.6rem;
+    border: 1px solid var(--border-color);
+    background-color: var(--nav-item-background-color);
+    color: var(--nav-item-foreground-color);
+    padding: 0.2rem 0.5rem;
     font-size: 0.8rem;
     border-radius: 4px;
     cursor: pointer;
-    opacity: 0.8;
-    transition: opacity 0.2s;
+    opacity: 0.7;
+    transition: opacity 0.2s, background-color 0.2s;
+
+    &:hover {
+        opacity: 1;
+        background-color: var(--nav-item-hover-background-color);
+    }
 }
 
 h1 {
@@ -906,3 +962,80 @@ blockquote {
 //         line-break: anywhere;
 //     }
 // }
+
+.theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+
+    span {
+        display: inline-flex;
+        align-items: center;
+    }
+}
+
+.breadcrumb-inner .theme-toggle {
+    margin-left: auto;
+
+    svg {
+        width: 1.25em;
+        height: 1.25em;
+        vertical-align: middle;
+    }
+}
+
+/* Toggle icon visibility based on current theme: Sun for light mode, Moon for dark mode */
+.theme-icon-sun {
+    display: inline-flex;
+}
+.theme-icon-moon {
+    display: none;
+}
+
+[data-theme="dark"] .theme-icon-sun {
+    display: none;
+}
+[data-theme="dark"] .theme-icon-moon {
+    display: inline-flex;
+}
+
+[data-theme="light"] .theme-icon-sun {
+    display: inline-flex;
+}
+[data-theme="light"] .theme-icon-moon {
+    display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .theme-icon-sun {
+        display: none;
+    }
+    :root:not([data-theme="light"]) .theme-icon-moon {
+        display: inline-flex;
+    }
+}
+
+/* Ensure Giallo syntax highlighting respects data-theme and system dark mode */
+[data-theme="dark"] pre.giallo,
+[data-theme="dark"] .giallo {
+    color-scheme: dark !important;
+}
+
+[data-theme="light"] pre.giallo,
+[data-theme="light"] .giallo {
+    color-scheme: light !important;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) pre.giallo,
+    :root:not([data-theme="light"]) .giallo {
+        color-scheme: dark !important;
+    }
+}
+
+@media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) pre.giallo,
+    :root:not([data-theme="dark"]) .giallo {
+        color-scheme: light !important;
+    }
+}
