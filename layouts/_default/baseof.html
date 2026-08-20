@@ -60,6 +60,7 @@
   <div class="wrapper">
     <div class="main">
       {{ block "top" . }}
+      {{ if not .IsPage }}
       <div class="top">
         <a href="{{ .Site.BaseURL }}">
           <img src="{{ .Site.Params.avatar_url }}" width="72" height="72" class="avatar" alt="{{ .Site.Title }}">
@@ -93,6 +94,7 @@
           </a>
         </div>
       </div>
+      {{ end }}
       {{ end }}
 
       {{ block "main" . }}{{ end }}
