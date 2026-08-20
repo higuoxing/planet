@@ -129,16 +129,13 @@ html {
     padding: 0;
     margin: 0;
     background-color: $background-color;
-    transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 body {
     background-color: $background-color;
-    color: $foreground-color;
     padding: 0;
     margin: 0;
     font-family: $serif;
-    transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 // Links.
@@ -160,7 +157,6 @@ code {
     border-radius: 3px;
     background-color: $code-background-color;
     color: inherit;
-    transition: background-color 0.2s ease;
 }
 
 pre code {
@@ -195,7 +191,6 @@ pre {
     display: block;
     break-inside: avoid;
     text-align: left;
-    transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .code-block {
@@ -270,7 +265,6 @@ hr {
     border-bottom: 1px solid $breadcrumb-border-color;
     box-sizing: border-box;
     z-index: 99;
-    transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .breadcrumb-inner {
@@ -629,9 +623,7 @@ img.avatar {
     text-decoration: none;
 }
 
-.nav a svg,
-.nav button svg,
-.nav .theme-toggle svg {
+.nav a svg {
     width: 1.5em;
     height: 1.5em;
     vertical-align: middle;
@@ -972,17 +964,9 @@ blockquote {
 // }
 
 .theme-toggle {
-    background: none;
-    border: none;
-    padding: 0;
-    margin: 0;
-    font: inherit;
-    color: inherit;
     display: inline-flex;
     align-items: center;
     cursor: pointer;
-    outline: none;
-    -webkit-tap-highlight-color: transparent;
 
     .theme-icon-sun,
     .theme-icon-moon {
