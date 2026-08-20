@@ -62,7 +62,7 @@
       {{ block "top" . }}
       {{ if not .IsPage }}
       <div class="top">
-        <a href="{{ .Site.BaseURL }}">
+        <a href="{{ "/" | relURL }}">
           <img src="{{ .Site.Params.avatar_url }}" width="72" height="72" class="avatar" alt="{{ .Site.Title }}">
         </a>
         <div class="site-info">

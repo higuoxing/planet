@@ -2,12 +2,12 @@
 <div class="breadcrumb">
   <div class="breadcrumb-inner">
     <div class="breadcrumb-avatar">
-      <a href="{{ .Site.BaseURL }}">
+      <a href="{{ "/" | relURL }}">
         <img src="{{ .Site.Params.avatar_url }}" height="16" width="16" class="breadcrumb-avatar-image" alt="">
       </a>
     </div>
 
-    <a href="{{ .Site.BaseURL }}">{{ .Site.Title }}</a>
+    <a href="{{ "/" | relURL }}">{{ .Site.Title }}</a>
     <span class="chevron">›</span>
 
     <a href="javascript:void(0)" class="theme-toggle" role="button" aria-label="Toggle theme" title="Toggle dark/light mode">
