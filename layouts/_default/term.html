@@ -1,0 +1,27 @@
+{{ define "main" }}
+<div class="tag-container">
+  <div class="tag-caption">
+    <a href="{{ "tags/" | relURL }}">tags</a>
+    <span class="chevron">›</span>
+  </div>
+  <div class="tag-title">
+    {{ .Title }}
+  </div>
+  <div class="tag-count">
+    {{ len .Pages }} articles
+  </div>
+</div>
+
+<div class="items">
+  {{ range .Pages }}
+  <div class="item">
+    <div class="item-main">
+      <div class="item-title"><a href="{{ .RelPermalink }}">{{ .Title }}</a></div>
+      <div class="item-info">
+        <div class="item-date">{{ .Date.Format "2006-01-02" }}</div>
+      </div>
+    </div>
+  </div>
+  {{ end }}
+</div>
+{{ end }}

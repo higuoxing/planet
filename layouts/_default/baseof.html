@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="{{ .Site.Language.Locale | default "en" }}">
+<head>
+  <meta charset="utf-8">
+  <script>
+    (function() {
+      function getStoredTheme() {
+        try {
+          var t = localStorage.getItem('theme');
+          if (t === 'dark' || t === 'light') return t;
+        } catch (e) {}
+        try {
+          var m = document.cookie.match(/(?:^|;\s*)theme=([^;]+)/);
+          if (m && (m[1] === 'dark' || m[1] === 'light')) return m[1];
+        } catch (e) {}
+        return null;
+      }
+      var theme = getStoredTheme();
+      if (!theme) {
+        theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ if .IsHome }}{{ .Site.Title }}{{ else if .Title }}{{ .Title }} · {{ .Site.Title }}{{ else }}{{ .Site.Title }}{{ end }}</title>
+  <meta name="description" content="{{ with .Description }}{{ . }}{{ else }}{{ .Summary | default .Site.Params.description }}{{ end }}">
+  <link rel="canonical" href="{{ .Permalink }}">
+
+  <meta property="og:type" content="{{ if .IsPage }}article{{ else }}website{{ end }}">
+  <meta property="og:site_name" content="{{ .Site.Title }}">
+  <meta property="og:title" content="{{ if .IsHome }}{{ .Site.Title }}{{ else }}{{ .Title }}{{ end }}">
+  <meta property="og:description" content="{{ with .Description }}{{ . }}{{ else }}{{ .Summary | default .Site.Params.description }}{{ end }}">
+  <meta property="og:url" content="{{ .Permalink }}">
+  {{ with .Site.Params.avatar_url }}
+  <meta property="og:image" content="{{ . | absURL }}">
+  {{ end }}
+
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="{{ if .IsHome }}{{ .Site.Title }}{{ else }}{{ .Title }}{{ end }}">
+  <meta name="twitter:description" content="{{ with .Description }}{{ . }}{{ else }}{{ .Summary | default .Site.Params.description }}{{ end }}">
+
+  {{ with .OutputFormats.Get "RSS" }}
+  <link rel="alternate" type="application/rss+xml" title="{{ $.Site.Title }}" href="{{ .RelPermalink }}">
+  {{ end }}
+
+  {{ with .Site.Params.favicon_url }}
+  <link rel="icon" href="{{ . }}" sizes="any">
+  {{ else }}
+  <link rel="icon" type="image/x-icon" href="{{ "favicon.png" | relURL }}">
+  {{ end }}
+
+  {{ $style := resources.Get "sass/style.scss" | toCSS }}
+  <link rel="stylesheet" href="{{ $style.RelPermalink }}">
+
+  <script src="{{ "copycode.js" | relURL }}"></script>
+</head>
+
+<body>
+  <div class="wrapper">
+    <div class="main">
+      {{ block "top" . }}
+      <div class="top">
+        <a href="{{ .Site.BaseURL }}">
+          <img src="{{ .Site.Params.avatar_url }}" width="72" height="72" class="avatar" alt="{{ .Site.Title }}">
+        </a>
+        <div class="site-info">
+          <div class="site-title">{{ .Site.Title }}</div>
+          <div class="site-about">
+            <p>{{ .Site.Params.description }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="nav-container">
+        <div class="nav">
+          {{ $currentRel := .RelPermalink }}
+          {{ range .Site.Params.nav }}
+            {{ if eq (strings.TrimSuffix "/" .path) (strings.TrimSuffix "/" $currentRel) }}
+              <a href="{{ .path | relURL }}" class="nav-current">{{ .text }} </a>
+            {{ else }}
+              <a href="{{ .path | relURL }}" class="nav-item">{{ .text }} </a>
+            {{ end }}
+          {{ end }}
+
+          {{ range .Site.Params.social }}
+            <a href="{{ .url }}">{{ partial "icon.html" .la_icon }}</a>
+          {{ end }}
+
+          <a href="javascript:void(0)" class="theme-toggle" role="button" aria-label="Toggle theme" title="Toggle dark/light mode">
+            <span class="theme-icon-sun">{{ partial "icon.html" "las la-sun" }}</span>
+            <span class="theme-icon-moon">{{ partial "icon.html" "las la-moon" }}</span>
+          </a>
+        </div>
+      </div>
+      {{ end }}
+
+      {{ block "main" . }}{{ end }}
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      function setStoredTheme(theme) {
+        try { localStorage.setItem('theme', theme); } catch (e) {}
+        try { document.cookie = 'theme=' + encodeURIComponent(theme) + ';path=/;max-age=31536000;SameSite=Lax'; } catch (e) {}
+      }
+
+      document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.theme-toggle');
+        if (!btn) return;
+        e.preventDefault();
+        var current = document.documentElement.getAttribute('data-theme');
+        var systemIsDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var isDark = current === 'dark' || (!current && systemIsDark);
+        var newTheme = isDark ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', newTheme);
+        setStoredTheme(newTheme);
+      });
+    })();
+  </script>
+</body>
+</html>

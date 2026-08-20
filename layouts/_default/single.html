@@ -1,0 +1,44 @@
+{{ define "top" }}{{ end }}
+
+{{ define "main" }}
+<div class="breadcrumb">
+  <div class="breadcrumb-inner">
+    <div class="breadcrumb-avatar">
+      <a href="{{ .Site.BaseURL }}">
+        <img src="{{ .Site.Params.avatar_url }}" height="16" width="16" class="breadcrumb-avatar-image" alt="">
+      </a>
+    </div>
+
+    <a href="{{ .Site.BaseURL }}">{{ .Site.Title }}</a>
+    <span class="chevron">›</span>
+
+    <a href="javascript:void(0)" class="theme-toggle" role="button" aria-label="Toggle theme" title="Toggle dark/light mode">
+      <span class="theme-icon-sun">{{ partial "icon.html" "las la-sun" }}</span>
+      <span class="theme-icon-moon">{{ partial "icon.html" "las la-moon" }}</span>
+    </a>
+  </div>
+</div>
+
+<div style="padding-top: 10px">
+  <h1 class="title">
+    {{ .Title }}
+  </h1>
+
+  <div class="date">
+    Published: {{ .Date.Format "2006-01-02" }}
+  </div>
+
+  <div class="tags-container">
+    {{ with .Params.tags }}
+    <span>Tags:</span>
+    {{ range . }}
+    <a href="{{ "tags/" | relURL }}{{ . | urlize }}/" class="tag-item">{{ . }}</a>
+    {{ end }}
+    {{ end }}
+  </div>
+
+  <div class="content">
+    {{ .Content }}
+  </div>
+</div>
+{{ end }}

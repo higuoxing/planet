@@ -1,68 +1,10 @@
-# The URL the site will be built for
-base_url = "https://higuoxing.github.io/planet/"
+name = "planet"
+license = "MIT"
+licenselink = "https://github.com/higuoxing/planet/blob/master/LICENSE"
+description = "The 'Planet' theme for Hugo"
+homepage = "https://github.com/higuoxing/planet"
+min_version = "0.110.0"
 
-title = "Planet"
-description = "The 'Planet' theme for Zola"
-
-# Whether to automatically compile all Sass files in the sass directory
-compile_sass = true
-
-# Whether to build a search index to be used later on by a JavaScript library
-build_search_index = true
-
-# The taxonomies to be rendered for the site and their configuration of the default languages
-# Example:
-#     taxonomies = [
-#       {name = "tags", feed = true}, # each tag will have its own feed
-#       {name = "tags"}, # you can have taxonomies with the same name in multiple languages
-#       {name = "categories", paginate_by = 5},  # 5 items per page for a term
-#       {name = "authors"}, # Basic definition: no feed or pagination
-#     ]
-#
-taxonomies = [
-  { name = "tags", lang = "en", feed = false }
-]
-
-generate_feeds = true
-
-[markdown]
-# Whether to do syntax highlighting
-# Theme can be customised by setting the `highlight_theme` variable to a theme supported by Zola
-highlight_code = true
-highlight_theme = "Tomorrow"
-
-# Backreference for footnotes.
-bottom_footnotes = true
-
-# When set to "true", emoji aliases translated to their corresponding
-# Unicode emoji equivalent in the rendered Markdown files. (e.g.: :smile: => 😄)
-render_emoji = true
-
-[extra]
-favicon_url = "https://higuoxing.github.io/planet/favicon.png"
-avatar_url = "https://higuoxing.github.io/planet/avatar.jpeg"
-
-[[extra.nav]]
-text = "Home"
-path = "/"
-
-[[extra.nav]]
-text = "Tags"
-path = "/tags"
-
-[[extra.nav]]
-text = "Archive"
-path = "/archive"
-
-# Refer to https://icons8.com/line-awesome for icon names
-[[extra.social]]
-la_icon = "las la-rss"
-url = "/atom.xml"
-
-[[extra.social]]
-la_icon = "lab la-github"
-url = "https://github.com/higuoxing"
-
-[[extra.social]]
-la_icon = "lab la-twitter"
-url = "https://twitter.com/higuoxing"
+[author]
+  name = "higuoxing"
+  homepage = "https://higuoxing.com"

@@ -1,0 +1,20 @@
+{{ define "main" }}
+<div class="archive-container">
+
+  <div class="archive-title">
+    {{ .Title }}
+  </div>
+
+  <div class="archive-count">{{ len .Pages }} articles</div>
+
+  <div class="archive-list">
+    {{ range .Pages }}
+    <div class="archive-list-header">{{ .Date.Format "2006-01-02" }}</div>
+    <div class="archive-list-item">
+      <a href="{{ .RelPermalink }}">{{ .Title }}</a>
+    </div>
+    {{ end }}
+  </div>
+
+</div>
+{{ end }}
