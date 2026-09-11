@@ -474,8 +474,6 @@ hr {
     gap: 10px;
 }
 
-.item-hero-image {}
-
 .item-hero-image img {
     max-height: 60px;
     border-radius: 2px;
@@ -483,6 +481,38 @@ hr {
     object-fit: cover;
     image-rendering: optimizeQuality;
     border: 0px;
+}
+
+.not-found {
+    text-align: center;
+    padding: 40px 0 60px 0;
+}
+
+.not-found-code {
+    font-size: 5em;
+    font-weight: 700;
+    line-height: 1;
+    color: $foreground-secondary-color;
+    font-family: $sans-serif;
+    margin-bottom: 16px;
+    letter-spacing: -0.02em;
+}
+
+.not-found-title {
+    font-size: 1.5em;
+    font-weight: 600;
+    margin-top: 0;
+    margin-bottom: 12px;
+    color: $foreground-color;
+    font-family: $sans-serif;
+}
+
+.not-found-desc {
+    color: $foreground-secondary-color;
+    max-width: 460px;
+    margin: 0 auto;
+    font-size: 1.05em;
+    line-height: 1.6;
 }
 
 .item-title {
