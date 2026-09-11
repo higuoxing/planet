@@ -284,26 +284,61 @@ hr {
     margin-right: auto;
 }
 
+.breadcrumb-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    line-height: 1;
+    text-decoration: none;
+
+    &:hover {
+        text-decoration: none;
+        .breadcrumb-site-title {
+            text-decoration: underline;
+            text-underline-offset: .2rem;
+        }
+    }
+}
+
+.breadcrumb-site-title {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+}
+
 .chevron {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
     margin: 0 8px;
     color: $chevron-color;
     font-family: "Lucida Grande";
     font-weight: 500;
+    line-height: 1;
 }
 
 .breadcrumb-inner>a {
     line-break: auto;
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
 }
 
 .breadcrumb-avatar {
-    margin-right: 10px;
+    margin-right: 8px;
     display: flex;
+    align-items: center;
+    line-height: 1;
+
+    a {
+        display: flex;
+        align-items: center;
+        line-height: 1;
+    }
 }
 
 .breadcrumb-avatar-image {
-    width: 28px;
-    height: 28px;
+    width: 1.25em;
+    height: 1.25em;
     border-radius: 50%;
     display: block;
     filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.1));
@@ -837,6 +872,9 @@ blockquote {
 
 .breadcrumb-inner .theme-toggle {
     margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
 
     svg {
         width: 1.25em;

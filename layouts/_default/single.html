@@ -1,13 +1,10 @@
 {{ define "main" }}
 <div class="breadcrumb">
   <div class="breadcrumb-inner">
-    <div class="breadcrumb-avatar">
-      <a href="{{ "/" | relURL }}">
-        <img src="{{ .Site.Params.avatar_url }}" height="28" width="28" class="breadcrumb-avatar-image" alt="">
-      </a>
-    </div>
-
-    <a href="{{ "/" | relURL }}">{{ .Site.Title }}</a>
+    <a href="{{ "/" | relURL }}" class="breadcrumb-brand">
+      <img src="{{ .Site.Params.avatar_url }}" height="22" width="22" class="breadcrumb-avatar-image" alt="">
+      <span class="breadcrumb-site-title">{{ .Site.Title }}</span>
+    </a>
     <span class="chevron">›</span>
 
     <a href="javascript:void(0)" class="theme-toggle" role="button" aria-label="Toggle theme" title="Toggle dark/light mode">
