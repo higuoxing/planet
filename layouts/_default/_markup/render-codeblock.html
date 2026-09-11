@@ -1,0 +1,5 @@
+{{- $result := transform.HighlightCodeBlock . -}}
+<div class="code-block">
+  <button class="copy-btn" type="button" aria-label="Copy code to clipboard">Copy</button>
+  {{- $result.Wrapped -}}
+</div>

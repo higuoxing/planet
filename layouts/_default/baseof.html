@@ -52,8 +52,6 @@
 
   {{ $style := resources.Get "sass/style.scss" | toCSS }}
   <link rel="stylesheet" href="{{ $style.RelPermalink }}">
-
-  <script src="{{ "copycode.js" | relURL }}"></script>
 </head>
 
 <body>
@@ -108,16 +106,61 @@
         try { document.cookie = 'theme=' + encodeURIComponent(theme) + ';path=/;max-age=31536000;SameSite=Lax'; } catch (e) {}
       }
 
+      function handleCopy(btn) {
+        var block = btn.closest('.code-block') || btn.closest('.highlight') || btn.closest('pre');
+        var code = block ? (block.querySelector('td.lntd:last-child code') || block.querySelector('code') || block) : null;
+        if (!code) return;
+        var text = (code.textContent || '').replace(/\r?\n$/, '');
+
+        function markCopied() {
+          btn.innerText = 'Copied!';
+          btn.classList.add('copied');
+          setTimeout(function() {
+            btn.innerText = 'Copy';
+            btn.classList.remove('copied');
+          }, 1500);
+        }
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(markCopied).catch(function() {
+            fallbackCopy(text, markCopied);
+          });
+        } else {
+          fallbackCopy(text, markCopied);
+        }
+      }
+
+      function fallbackCopy(text, cb) {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          if (document.execCommand('copy')) cb();
+        } catch (e) {}
+        document.body.removeChild(ta);
+      }
+
       document.addEventListener('click', function(e) {
-        var btn = e.target.closest('.theme-toggle');
-        if (!btn) return;
-        e.preventDefault();
-        var current = document.documentElement.getAttribute('data-theme');
-        var systemIsDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        var isDark = current === 'dark' || (!current && systemIsDark);
-        var newTheme = isDark ? 'light' : 'dark';
-        document.documentElement.setAttribute('data-theme', newTheme);
-        setStoredTheme(newTheme);
+        var themeBtn = e.target.closest('.theme-toggle');
+        if (themeBtn) {
+          e.preventDefault();
+          var current = document.documentElement.getAttribute('data-theme');
+          var systemIsDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var isDark = current === 'dark' || (!current && systemIsDark);
+          var newTheme = isDark ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', newTheme);
+          setStoredTheme(newTheme);
+          return;
+        }
+
+        var copyBtn = e.target.closest('.copy-btn');
+        if (copyBtn) {
+          e.preventDefault();
+          handleCopy(copyBtn);
+        }
       });
     })();
   </script>

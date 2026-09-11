@@ -209,6 +209,7 @@ pre {
     position: absolute;
     top: 0.4rem;
     right: 0.4rem;
+    z-index: 2;
     border: 1px solid var(--border-color);
     background-color: var(--nav-item-background-color);
     color: var(--nav-item-foreground-color);
@@ -216,6 +217,7 @@ pre {
     font-size: 0.8rem;
     border-radius: 4px;
     cursor: pointer;
+    user-select: none;
     opacity: 0.7;
     transition: opacity 0.2s, background-color 0.2s;
 
