@@ -1,18 +1,45 @@
 {{ define "main" }}
-<div class="items">
-  {{ range .Site.RegularPages }}
-  <div class="item">
-    <div class="item-main">
-      <div class="item-title">
-        <a href="{{ .RelPermalink }}">{{ .Title }}</a>
-      </div>
-      <div class="item-info">
-        <div class="item-date">
-          {{ .Date.Format "2006-01-02" }}
-        </div>
-      </div>
+<div class="blog-index">
+  <header class="blog-hero">
+    <div class="blog-hero-header">
+      <h1 class="blog-heading">Blog</h1>
+      <span class="rss-link-wrap">Get the <a href="{{ "index.xml" | relURL }}" class="rss-link">RSS feed</a></span>
     </div>
+
+    <nav class="category-nav" aria-label="Topic filters">
+      <a href="{{ "/" | relURL }}" class="category-link active">Home</a>
+      <span class="category-sep">|</span>
+      <a href="{{ "tags/" | relURL }}" class="category-link">Tags</a>
+      <span class="category-sep">|</span>
+      <a href="{{ "archive/" | relURL }}" class="category-link">Archive</a>
+    </nav>
+  </header>
+
+  <div class="posts-feed">
+    {{ range .Site.RegularPages }}
+    <article class="post-item">
+      <hr class="dot-fill" />
+      <div class="post-title-row">
+        <h2 class="post-title">
+          <a href="{{ .RelPermalink }}">{{ .Title }}</a>
+        </h2>
+        {{ with .Params.tags }}
+        <span class="post-tags-inline">
+          [{{ range $index, $tag := . }}{{ if $index }}, {{ end }}<a href="{{ "tags/" | relURL }}{{ $tag | urlize }}/" class="tag-link">{{ $tag }}</a>{{ end }}]
+        </span>
+        {{ end }}
+      </div>
+
+      <p class="post-meta">
+        <time class="meta-date" datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "January 2, 2006" }}</time>
+      </p>
+
+      <p class="post-summary">
+        {{ with .Description }}{{ . }}{{ else }}{{ .Summary | plainify | truncate 240 }}{{ end }}
+        <a href="{{ .RelPermalink }}" class="post-arrow-btn" aria-label="Read {{ .Title }}">→</a>
+      </p>
+    </article>
+    {{ end }}
   </div>
-  {{ end }}
 </div>
 {{ end }}

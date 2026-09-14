@@ -1,20 +1,39 @@
 {{ define "main" }}
-<div class="archive-container">
+<div class="archive-page">
+  <header class="archive-header">
+    <h1 class="archive-heading">{{ .Title }}</h1>
+    <nav class="category-nav" aria-label="Topic filters">
+      <a href="{{ "/" | relURL }}" class="category-link">Home</a>
+      <span class="category-sep">|</span>
+      <a href="{{ "tags/" | relURL }}" class="category-link">Tags</a>
+      <span class="category-sep">|</span>
+      <a href="{{ "archive/" | relURL }}" class="category-link active">Archive</a>
+    </nav>
+    <p class="archive-subheading">{{ len .Pages }} articles published across all topics</p>
+    <hr class="dot-fill" />
+  </header>
 
-  <div class="archive-title">
-    {{ .Title }}
-  </div>
-
-  <div class="archive-count">{{ len .Pages }} articles</div>
-
-  <div class="archive-list">
-    {{ range .Pages }}
-    <div class="archive-list-header">{{ .Date.Format "2006-01-02" }}</div>
-    <div class="archive-list-item">
-      <a href="{{ .RelPermalink }}">{{ .Title }}</a>
-    </div>
+  <div class="archive-timeline">
+    {{ range .Pages.GroupByDate "2006" }}
+    <section class="archive-year-group">
+      <div class="archive-year-badge">{{ .Key }}</div>
+      <div class="archive-year-posts">
+        {{ range .Pages }}
+        <article class="archive-post-row">
+          <time class="archive-post-date" datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "Jan 02" }}</time>
+          <div class="archive-post-info">
+            <a href="{{ .RelPermalink }}" class="archive-post-link">{{ .Title }}</a>
+            {{ with .Params.tags }}
+            <span class="archive-post-tags">
+              [{{ range $i, $t := . }}{{ if $i }}, {{ end }}<a href="{{ "tags/" | relURL }}{{ $t | urlize }}/" class="tag-link">{{ $t }}</a>{{ end }}]
+            </span>
+            {{ end }}
+          </div>
+        </article>
+        {{ end }}
+      </div>
+    </section>
     {{ end }}
   </div>
-
 </div>
 {{ end }}

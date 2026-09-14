@@ -1,39 +1,44 @@
 {{ define "main" }}
-<div class="breadcrumb">
-  <div class="breadcrumb-inner">
-    <a href="{{ "/" | relURL }}" class="breadcrumb-brand">
-      <img src="{{ .Site.Params.avatar_url }}" height="22" width="22" class="breadcrumb-avatar-image" alt="">
-      <span class="breadcrumb-site-title">{{ .Site.Title }}</span>
-    </a>
-    <span class="chevron">›</span>
+<div class="article-wrapper">
+  <nav class="post-breadcrumb" aria-label="Breadcrumb">
+    <a href="{{ "/" | relURL }}" class="breadcrumb-item">Blog</a>
+  </nav>
 
-    <a href="javascript:void(0)" class="theme-toggle" role="button" aria-label="Toggle theme" title="Toggle dark/light mode">
-      <span class="theme-icon-sun">{{ partial "icon.html" "las la-sun" }}</span>
-      <span class="theme-icon-moon">{{ partial "icon.html" "las la-moon" }}</span>
-    </a>
-  </div>
-</div>
-
-<div style="padding-top: 10px">
-  <h1 class="title">
-    {{ .Title }}
-  </h1>
-
-  <div class="date">
-    Published: {{ .Date.Format "2006-01-02" }}
-  </div>
-
-  <div class="tags-container">
+  <header class="article-header">
+    <h1 class="article-title">{{ .Title }}</h1>
     {{ with .Params.tags }}
-    <span>Tags:</span>
-    {{ range . }}
-    <a href="{{ "tags/" | relURL }}{{ . | urlize }}/" class="tag-item">{{ . }}</a>
+    <div class="article-tags-row">
+      <span class="article-tags-inline">
+        [{{ range $i, $t := . }}{{ if $i }}, {{ end }}<a href="{{ "tags/" | relURL }}{{ $t | urlize }}/" class="tag-link">{{ $t }}</a>{{ end }}]
+      </span>
+    </div>
     {{ end }}
-    {{ end }}
-  </div>
 
-  <div class="content">
-    {{ .Content }}
+    <div class="article-byline">
+      <time class="byline-date" datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "January 2, 2006" }}</time>
+      <span class="byline-sep">·</span>
+      <span class="byline-readtime">{{ .ReadingTime }} min read</span>
+    </div>
+    <hr class="dot-fill" />
+  </header>
+
+  <div class="article-layout">
+    <article class="article-main">
+      <div class="content">
+        {{ .Content }}
+      </div>
+    </article>
+
+    {{ with .TableOfContents }}
+    <aside class="article-sidebar">
+      <div class="toc-box">
+        <div class="toc-title">Table of contents</div>
+        <div class="toc-content">
+          {{ . }}
+        </div>
+      </div>
+    </aside>
+    {{ end }}
   </div>
 </div>
 {{ end }}

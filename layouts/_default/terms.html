@@ -1,15 +1,25 @@
 {{ define "main" }}
-<div class="tag-container">
-  <div class="tag-title">Tags</div>
-  <div class="tag-count">{{ len .Pages }} tags</div>
-</div>
+<div class="tags-page">
+  <header class="tags-header">
+    <h1 class="tags-heading">Tags</h1>
+    <nav class="category-nav" aria-label="Topic filters">
+      <a href="{{ "/" | relURL }}" class="category-link">Home</a>
+      <span class="category-sep">|</span>
+      <a href="{{ "tags/" | relURL }}" class="category-link active">Tags</a>
+      <span class="category-sep">|</span>
+      <a href="{{ "archive/" | relURL }}" class="category-link">Archive</a>
+    </nav>
+    <p class="tags-subheading">{{ len .Data.Terms }} tags across all articles</p>
+    <hr class="dot-fill" />
+  </header>
 
-<div class="tag-cloud">
-  {{ range .Pages }}
-  <div class="tag-cloud-item">
-    <a href="{{ .RelPermalink }}">{{ .Title }}</a>
-    <span class="tag-cloud-item-count">{{ len .Pages }}</span>
-  </div>
-  {{ end }}
+  <ul class="tags-list">
+    {{ range .Data.Terms.Alphabetical }}
+    <li class="tags-list-item">
+      <a href="{{ .Page.RelPermalink }}" class="tag-item-link">[{{ .Page.Title }}]</a>
+      <span class="tag-item-count">({{ .Count }})</span>
+    </li>
+    {{ end }}
+  </ul>
 </div>
 {{ end }}

@@ -1,27 +1,43 @@
 {{ define "main" }}
-<div class="tag-container">
-  <div class="tag-caption">
-    <a href="{{ "tags/" | relURL }}">tags</a>
-    <span class="chevron">›</span>
-  </div>
-  <div class="tag-title">
-    {{ .Title }}
-  </div>
-  <div class="tag-count">
-    {{ len .Pages }} articles
-  </div>
-</div>
+<div class="term-page">
+  <nav class="post-breadcrumb" aria-label="Breadcrumb">
+    <a href="{{ "/" | relURL }}" class="breadcrumb-item">Blog</a>
+    <span class="breadcrumb-sep">/</span>
+    <a href="{{ "tags/" | relURL }}" class="breadcrumb-item">Tags</a>
+    <span class="breadcrumb-sep">/</span>
+    <span class="breadcrumb-tag">{{ .Title }}</span>
+  </nav>
 
-<div class="items">
-  {{ range .Pages }}
-  <div class="item">
-    <div class="item-main">
-      <div class="item-title"><a href="{{ .RelPermalink }}">{{ .Title }}</a></div>
-      <div class="item-info">
-        <div class="item-date">{{ .Date.Format "2006-01-02" }}</div>
+  <header class="blog-hero">
+    <h1 class="blog-heading">Topic: [{{ .Title }}]</h1>
+    <p class="blog-subheading">{{ len .Pages }} {{ if eq (len .Pages) 1 }}article{{ else }}articles{{ end }}</p>
+  </header>
+
+  <div class="posts-feed">
+    {{ range .Pages }}
+    <article class="post-item">
+      <hr class="dot-fill" />
+      <div class="post-title-row">
+        <h2 class="post-title">
+          <a href="{{ .RelPermalink }}">{{ .Title }}</a>
+        </h2>
+        {{ with .Params.tags }}
+        <span class="post-tags-inline">
+          [{{ range $index, $tag := . }}{{ if $index }}, {{ end }}<a href="{{ "tags/" | relURL }}{{ $tag | urlize }}/" class="tag-link">{{ $tag }}</a>{{ end }}]
+        </span>
+        {{ end }}
       </div>
-    </div>
+
+      <p class="post-meta">
+        <time class="meta-date" datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "January 2, 2006" }}</time>
+      </p>
+
+      <p class="post-summary">
+        {{ with .Description }}{{ . }}{{ else }}{{ .Summary | plainify | truncate 240 }}{{ end }}
+        <a href="{{ .RelPermalink }}" class="post-arrow-btn" aria-label="Read {{ .Title }}">→</a>
+      </p>
+    </article>
+    {{ end }}
   </div>
-  {{ end }}
 </div>
 {{ end }}
