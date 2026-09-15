@@ -719,17 +719,6 @@ hr,
   align-items: start;
 }
 
-@media (max-width: 960px) {
-  .article-layout {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 2rem;
-  }
-
-  .article-sidebar {
-    order: -1;
-  }
-}
-
 /* Sticky Plain-Text Table of Contents (PlanetScale Style) */
 .article-sidebar {
   position: sticky;
@@ -742,6 +731,27 @@ hr,
   border-radius: 0;
   padding: 0;
   box-shadow: none;
+
+  summary.toc-title {
+    font-family: $font-mono;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--text-heading);
+    margin-bottom: 0.75rem;
+    text-transform: none;
+    font-feature-settings: "zero", "tnum";
+    list-style: none;
+    cursor: default;
+    user-select: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+    &::marker {
+      display: none;
+    }
+  }
 }
 
 .toc-title {
@@ -827,6 +837,79 @@ hr,
   }
 }
 
+@media (max-width: 960px) {
+  .article-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+  }
+
+  .article-sidebar {
+    order: -1;
+    position: sticky;
+    top: 3.25rem;
+    z-index: 40;
+    margin-bottom: 0.75rem;
+  }
+
+  .toc-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+
+    summary.toc-title {
+      cursor: pointer;
+      user-select: none;
+      padding: 0.5rem 0.85rem;
+      margin-bottom: 0;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface-soft);
+      transition: background 0.15s ease;
+
+      &::-webkit-details-marker {
+        display: none;
+      }
+      &::marker {
+        display: none;
+      }
+
+      &::after {
+        content: "▾";
+        font-size: 12px;
+        color: var(--text-muted);
+        transition: transform 0.2s ease;
+      }
+
+      &:hover {
+        background: var(--surface-elevated);
+      }
+    }
+
+    &:not([open]) summary.toc-title::after {
+      content: "▸";
+    }
+
+    &[open] {
+      box-shadow: var(--shadow-md);
+
+      summary.toc-title {
+        border-bottom: 1px solid var(--border);
+      }
+    }
+
+    .toc-content {
+      padding: 0.75rem 0.9rem;
+      max-height: 50vh;
+      overflow-y: auto;
+      background: var(--bg);
+    }
+  }
+}
+
 /* ==========================================================================
    Article Content & Typography (Exact PlanetScale Scale)
    ========================================================================== */
@@ -849,6 +932,7 @@ hr,
   h4,
   h5,
   h6 {
+    scroll-margin-top: 5rem;
     font-family: $font-mono;
     color: var(--text-heading);
     letter-spacing: -0.015em;

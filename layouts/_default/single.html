@@ -31,12 +31,12 @@
 
     {{ with .TableOfContents }}
     <aside class="article-sidebar">
-      <div class="toc-box">
-        <div class="toc-title">Table of contents</div>
+      <details class="toc-box" open>
+        <summary class="toc-title">Table of contents</summary>
         <div class="toc-content">
           {{ . }}
         </div>
-      </div>
+      </details>
     </aside>
     {{ end }}
   </div>
