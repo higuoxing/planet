@@ -1,0 +1,21 @@
+# {{ .Site.Title }} (Full Content Dump)
+
+> {{ .Site.Params.description }}
+
+- Author: {{ .Site.Params.author }}
+- Website: {{ .Site.BaseURL }}
+
+{{ range .Site.RegularPages }}
+---
+
+# {{ .Title }}
+
+- **URL**: {{ .Permalink }}
+- **Markdown URL**: {{ .Permalink }}index.md
+- **Date**: {{ .Date.Format "2006-01-02" }}
+{{ with .Params.tags }}- **Tags**: {{ delimit . ", " }}{{ end }}
+{{ with .Description }}- **Description**: {{ . }}{{ end }}
+
+{{ .RawContent }}
+
+{{ end }}

@@ -1,0 +1,20 @@
+# {{ .Site.Title }}
+
+> {{ .Site.Params.description }}
+
+- Author: {{ .Site.Params.author }}
+- Website: {{ .Site.BaseURL }}
+- RSS Feed: {{ "index.xml" | absURL }}
+- Full Content Dump: {{ "llms-full.txt" | absURL }}
+
+## Articles
+
+{{ range .Site.RegularPages -}}
+- [{{ .Title }}]({{ .Permalink }}): {{ with .Description }}{{ . }}{{ else }}{{ with .Params.description }}{{ . }}{{ else }}{{ .Summary | plainify | htmlUnescape | chomp | truncate 200 }}{{ end }}{{ end }}
+{{ end }}
+
+## Raw Markdown Endpoints
+Each article can be read directly as clean Markdown:
+{{ range .Site.RegularPages -}}
+- [{{ .Title }}]({{ .Permalink }}index.md)
+{{ end }}
