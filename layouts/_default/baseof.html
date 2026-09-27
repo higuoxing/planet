@@ -129,7 +129,9 @@
     <div class="site-header-inner">
       <div class="site-header-brand">
         <a href="{{ "/" | relURL }}" class="brand-link">
-          <img src="{{ .Site.Params.avatar_url }}" width="28" height="28" class="brand-avatar" alt="{{ .Site.Title }}">
+          {{ with .Site.Params.avatar_url }}
+          <img src="{{ . | relURL }}" width="28" height="28" class="brand-avatar" alt="{{ $.Site.Title }}">
+          {{ end }}
           <span class="brand-name">{{ .Site.Title }}</span>
         </a>
         <button type="button" class="theme-toggle" aria-label="Toggle dark/light mode" title="Toggle theme">
