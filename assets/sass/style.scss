@@ -1329,12 +1329,20 @@ pre {
 }
 
 .archive-year-badge {
+  display: inline-block;
   font-family: $font-mono;
   font-size: 18px;
   font-weight: 700;
   color: var(--link-color);
   margin-bottom: 0.75rem;
   letter-spacing: 0.02em;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+
+  &[href]:hover {
+    text-decoration: underline;
+    background: var(--link-soft);
+  }
 }
 
 .archive-year-posts {
@@ -1370,9 +1378,17 @@ pre {
   font-weight: 600;
   font-size: 15px;
   letter-spacing: -0.005em;
+  font-feature-settings: "zero", "tnum";
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: transparent;
+  transition: all 0.15s ease;
 
   &:hover {
-    color: var(--accent);
+    text-decoration-color: currentColor;
+    color: var(--text-heading);
+    background-color: var(--surface-soft);
   }
 }
 
