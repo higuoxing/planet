@@ -24,6 +24,8 @@
 
 $font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 $font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+$link-color: #0000EE;
+$link-soft: rgba(0, 0, 238, 0.08);
 
 :root {
   color-scheme: light dark;
@@ -47,6 +49,9 @@ $font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Conso
   --accent-soft: rgba(51, 107, 173, 0.12);
   --accent-border: rgba(51, 107, 173, 0.3);
   --accent-contrast: #ffffff;
+
+  --link-color: #{$link-color};
+  --link-soft: #{$link-soft};
 
   --code-bg: #eef2ff;
   --code-fg: #1f2735;
@@ -166,14 +171,24 @@ body {
   letter-spacing: -0.006em;
 }
 
+/*
+Source - https://stackoverflow.com/a/4774037
+Posted by BoltClock, modified by community. See post 'Timeline' for change history
+Retrieved 2026-09-27, License - CC BY-SA 4.0
+*/
+
+:link,
+:visited {
+  color: var(--link-color);
+}
+
 a {
-  color: inherit;
   text-decoration: none;
   transition: color 0.15s ease;
 }
 
 a:hover {
-  color: var(--accent);
+  color: var(--link-color);
 }
 
 /* ==========================================================================
@@ -405,12 +420,11 @@ a:hover {
   color: var(--text-muted);
 
   .rss-link {
-    color: var(--accent);
     text-decoration: underline;
     text-underline-offset: 2px;
 
     &:hover {
-      color: var(--accent-hover);
+      color: var(--link-color);
     }
   }
 }
@@ -434,15 +448,14 @@ a:hover {
 }
 
 .category-link {
-  color: var(--accent);
   padding: 0.1rem 0.35rem;
   border-radius: var(--radius-sm);
   font-weight: 500;
   transition: all 0.15s ease;
 
   &:hover {
-    background: var(--accent-soft);
-    color: var(--accent-hover);
+    background: var(--link-soft);
+    color: var(--link-color);
   }
 
   &.active {
@@ -536,10 +549,8 @@ hr,
   white-space: nowrap;
 
   .tag-link {
-    color: var(--accent);
-
     &:hover {
-      background: var(--accent-soft);
+      background: var(--link-soft);
       text-decoration: none;
     }
   }
@@ -588,8 +599,7 @@ hr,
 .post-arrow-btn {
   display: inline-block;
   padding: 0 0.35rem;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--link-soft);
   border-radius: 3px;
   font-weight: 600;
   font-family: $font-mono;
@@ -598,8 +608,8 @@ hr,
   transition: all 0.15s ease;
 
   &:hover {
-    background: var(--accent);
-    color: var(--accent-contrast);
+    background: var(--link-color);
+    color: #ffffff;
   }
 }
 
@@ -633,16 +643,12 @@ hr,
 }
 
 .breadcrumb-tags {
-  color: var(--accent);
+  color: var(--link-color);
   font-weight: 500;
 }
 
 .breadcrumb-tag {
-  color: var(--accent);
-
-  &:hover {
-    text-decoration: underline;
-  }
+  color: var(--link-color);
 }
 
 .breadcrumb-comma {
@@ -677,10 +683,8 @@ hr,
   font-weight: 500;
 
   .tag-link {
-    color: var(--accent);
-
     &:hover {
-      background: var(--accent-soft);
+      background: var(--link-soft);
     }
   }
 }
@@ -807,12 +811,13 @@ hr,
       transition: all 0.15s ease;
 
       &:hover {
-        color: var(--accent);
+        color: var(--link-color);
         text-decoration-color: currentColor;
+        background: var(--link-soft);
       }
 
       &.active {
-        color: var(--accent);
+        color: var(--link-color);
         font-weight: 600;
         text-decoration-color: currentColor;
       }
@@ -820,12 +825,12 @@ hr,
 
     &.active {
       &::before {
-        color: var(--accent);
+        color: var(--link-color);
         font-weight: 700;
       }
 
       > a {
-        color: var(--accent);
+        color: var(--link-color);
         font-weight: 600;
         text-decoration-color: currentColor;
       }
@@ -984,14 +989,13 @@ hr,
   }
 
   a {
-    color: var(--accent);
     text-decoration: underline;
     text-underline-offset: 3px;
     transition: all 0.15s ease;
 
     &:hover {
-      color: var(--accent-hover);
-      background: var(--accent-soft);
+      color: var(--link-color);
+      background: var(--link-soft);
     }
   }
 
@@ -1316,7 +1320,7 @@ pre {
   font-family: $font-mono;
   font-size: 18px;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--link-color);
   margin-bottom: 0.75rem;
   letter-spacing: 0.02em;
 }
@@ -1367,10 +1371,8 @@ pre {
   font-weight: 500;
 
   .tag-link {
-    color: var(--accent);
-
     &:hover {
-      background: var(--accent-soft);
+      background: var(--link-soft);
     }
   }
 }
@@ -1434,7 +1436,6 @@ pre {
 }
 
 .tag-item-link {
-  color: var(--accent);
   font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -1442,9 +1443,9 @@ pre {
   transition: all 0.15s ease;
 
   &:hover {
-    color: var(--accent-hover);
+    color: var(--link-color);
     text-decoration-color: currentColor;
-    background: var(--accent-soft);
+    background: var(--link-soft);
   }
 }
 
