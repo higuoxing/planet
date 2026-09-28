@@ -27,6 +27,9 @@ $font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Conso
 $link-color: #0000EE;
 $link-soft: rgba(0, 0, 238, 0.08);
 
+$dark-link-color: #9e9eff;
+$dark-link-soft: rgba(158, 158, 255, 0.15);
+
 :root {
   color-scheme: light dark;
 
@@ -52,6 +55,7 @@ $link-soft: rgba(0, 0, 238, 0.08);
 
   --link-color: #{$link-color};
   --link-soft: #{$link-soft};
+  --link-contrast: #ffffff;
 
   --code-bg: #eef2ff;
   --code-fg: #1f2735;
@@ -93,6 +97,10 @@ $link-soft: rgba(0, 0, 238, 0.08);
     --accent-border: rgba(102, 153, 255, 0.35);
     --accent-contrast: #0b1120;
 
+    --link-color: #{$dark-link-color};
+    --link-soft: #{$dark-link-soft};
+    --link-contrast: #0b1120;
+
     --code-bg: #101a2f;
     --code-fg: #cfd8f6;
     --kbd-color: #f1f4ff;
@@ -125,6 +133,10 @@ $link-soft: rgba(0, 0, 238, 0.08);
   --accent-soft: rgba(102, 153, 255, 0.15);
   --accent-border: rgba(102, 153, 255, 0.35);
   --accent-contrast: #0b1120;
+
+  --link-color: #{$dark-link-color};
+  --link-soft: #{$dark-link-soft};
+  --link-contrast: #0b1120;
 
   --code-bg: #101a2f;
   --code-fg: #cfd8f6;
@@ -609,7 +621,7 @@ hr,
 
   &:hover {
     background: var(--link-color);
-    color: #ffffff;
+    color: var(--link-contrast, #ffffff);
   }
 }
 
